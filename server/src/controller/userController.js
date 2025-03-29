@@ -2,7 +2,8 @@ import _ from 'lodash';
 
 export const nicknameDeduplicateCheckController = async (req, res) => {
     console.log(req.params);
-    res.send("test");
+    res.status(200).send({flag: true}
+    );
 }
 
 export const addressDeduplicateChcekController = async (req, res) => {

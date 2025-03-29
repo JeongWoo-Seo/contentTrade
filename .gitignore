@@ -1,3 +1,21 @@
 # dependencies
-./server/node_modules/
+front/build/
 ./front/node_modules/
+server/db/*.json
+./server/node_modules/
+server/src/core/libsnark/js-libsnark-opt/node_modules/
+server/src/core/libsnark/js-libsnark-opt/libsnark/
+tradeContract/node_modules/
+tradeContract/build/
+tradeContract/package-lock.json
+tradeContract/contracts/artifacts/
+crs/*.json
+crs/*.dat
+/.pnp
+.pnp.js
+./node_modules
+
+*.dat
+*.dylib
+*_backup.js
+*_backup.sql
