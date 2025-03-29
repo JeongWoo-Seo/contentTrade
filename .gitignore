@@ -1,8 +1,8 @@
 # dependencies
 front/build/
-./front/node_modules/
+front/node_modules/
 server/db/*.json
-./server/node_modules/
+server/node_modules/
 server/src/core/libsnark/js-libsnark-opt/node_modules/
 server/src/core/libsnark/js-libsnark-opt/libsnark/
 tradeContract/node_modules/
@@ -13,7 +13,7 @@ crs/*.json
 crs/*.dat
 /.pnp
 .pnp.js
-./node_modules
+node_modules
 
 *.dat
 *.dylib
