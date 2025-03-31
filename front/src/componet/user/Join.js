@@ -1,32 +1,33 @@
-import React, { useState } from 'react';
-import _ from 'lodash'
+import { useState } from 'react';
+import _ from 'lodash';
+import UserKey from '../../wallet/keyStruct'
 import httpCli from '../../utils/http';
 
 
 export default function Join(){
-
-    const [accounts, setAccounts] = useState([]);
     const [key, setKey]          = useState(null);
     const [nickname, setNickname] = useState(null);
     const [deduplication, setDeduplication] = useState(false);
 
     const onClickSkOwnGen = async (e) => {   
-
+        //key gen
+        const userKey = UserKey.keyGen();
+        setKey(userKey);
+        console.log(key);
 
     };
 
     const onChangeNickname = async (e) => {   
-
-
+        setNickname(e.taget.value);
     };
 
     const onClickDeduplication = async (e) => {   
-
+        //get nickname check
 
     };
 
     const onClickJoin = async (e) => {   
-
+        //post
 
     };
 
