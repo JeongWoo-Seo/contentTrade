@@ -1,4 +1,3 @@
-/* global BigInt */
 import constants from '../utils/constants.js';
 import Curve from '../crypto/curve.js';
 import mimc from '../crypto/mimc.js';
@@ -16,6 +15,16 @@ export default class UserKey {
         };
         this.skEnc = skEnc;
         this.skOwn = skOwn;
+    }
+
+    toObject(){
+        return ({
+            ena   : this.pk.ena,
+            pkOwn : this.pk.pkOwn,
+            pkEnc : this.pk.pkEnc,
+            skEnc : this.skEnc,
+            skOwn : this.skOwn
+        });
     }
 
     toJson(){
