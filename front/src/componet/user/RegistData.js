@@ -1,4 +1,4 @@
-import React,{ useState, useRef, Fragment, useCallback } from "react";
+import React,{ useState, useRef } from "react";
 import LoadingPage from "../LoadingPage";
 import httpCli from "../../utils/http.js";
 
@@ -59,7 +59,15 @@ export default function RegistData() {
     }
 
     const RegisterDataHandler = async (e) => {
+        setLoading(true);
 
+        const reqBody = {
+            "title" : `${title}`,
+            "desc"  : `${desc}`,
+            "data"  : `${textFile}`
+        }
+
+        //post
     }
 
     return (
