@@ -3,7 +3,9 @@ import rootRouter from "./routers";
 import bodyParser from "body-parser";
 import cors from 'cors';
 
+
 const server = async () =>{
+
     const app = express();
     
     app.get('/',(req,res) => {
