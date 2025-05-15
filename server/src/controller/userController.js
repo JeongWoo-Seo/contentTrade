@@ -1,4 +1,8 @@
 import mySqlHandler from "../db/mysql";
+import jwt from 'jsonwebtoken';
+
+dotenv.config();
+const JWT_SECRET = process.env.JWT_SECRET;
 
 export const nicknameDeduplicateCheckController = async (req, res) => {
     const nickname = req.params.nickname;
@@ -30,7 +34,7 @@ export const joinController = async (req, res) => {
         //임시코드
         req.body.eoa = "6";
         //임시코드
-        
+
         mySqlHandler.userJoinQuery(req.body, async (ret) => {
             if(!ret){return res.status(200).send({flag:false});}
             
@@ -48,5 +52,25 @@ export const joinController = async (req, res) => {
 }
 
 export const loginController = async (req, res) => {
-
+    mySqlHandler.userLoginQuery(req.body, (login) => {
+        const response = {
+          flag      : false,
+          token     : undefined,
+          loginTk   : undefined,
+          nickname  : undefined
+        };
+        try {
+            const {nickname,login_tk} = req.body;
+            if(login.flag && login_tk === login.loginTk ){
+                response.flag     = true; 
+                response.loginTk  = login.login_tk;
+                response.token    = jwt.sign({sk_enc:login.sk_enc},JWT_SECRET);
+                response.nickname = login.nickname;
+              }
+              res.status(200).send(response); 
+        } catch (error) {
+            console.log(error);
+            res.send(response);
+        }
+    })
 }

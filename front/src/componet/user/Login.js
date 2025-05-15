@@ -15,9 +15,8 @@ export default function Login() {
 
         if (!isLoading) {
             setIsLoading(true);
-            const loginTk = mimc7.hash(keyRef, types.asciiToHex('login'));
-            console.log('loginTk : ', loginTk);
-            httpCli.post("/usr/login/login", { 'loginTk': loginTk }).then(res => {
+            const login_tk = mimc7.hash(keyRef, types.asciiToHex('login'));
+            httpCli.get("/usr/login", { 'nickname':nameRef,'login_tk': loginTk }).then(res => {
                 console.log(res.data);
                 if (res.data["flag"] === false) {
                     navigate('/login');

@@ -55,15 +55,13 @@ export function getUserInfoFromId(id, callback){
 }
 
 export function userLoginQuery(userInfoJsonInput, callback){
-    const userInfoJson = _.isString(userInfoJsonInput)? JSON.parse(userInfoJsonInput) : userInfoJsonInput;
+    const nickname = userInfoJsonInput['nickname']
+    const loginQuery = `select login_tk, nickname, sk_enc, eoa_addr from user where nickname=?`
 
-    const loginTk = userInfoJson['loginTk']
-    const loginQuery = `select login_tk, nickname, sk_enc, eoa_addr from user where login_tk=?`
-
-    connection.query(loginQuery, [`${loginTk}`], (err, row) => {
+    connection.query(loginQuery, [`${nickname}`], (err, row) => {
         if(err) {console.log(err); callback(false); return;}
         if(row.length == 0){
-            console.log("loginTk does not exist");
+            console.log("user does not exist");
             callback({
                 flag : false
             });

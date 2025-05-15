@@ -6,11 +6,6 @@ import {
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
-    const msg = req.query.msg;
-    res.render('./', { msg });
-});
-
 router.get('/check/nickname/:nickname', nicknameDeduplicateCheckController);
 
 router.post('/join', joinController);
