@@ -55,9 +55,10 @@ export function getUserInfoFromId(id, callback){
 }
 
 export function userLoginQuery(userInfoJsonInput, callback){
-    const nickname = userInfoJsonInput['nickname']
-    const loginQuery = `select login_tk, nickname, sk_enc, eoa_addr from user where nickname=?`
+    const nickname = userInfoJsonInput['nickname'];
+    const login_tk = userInfoJsonInput['loginTk'];
 
+    const loginQuery = `select login_tk, nickname, sk_enc, eoa from user where nickname=?`
     connection.query(loginQuery, [`${nickname}`], (err, row) => {
         if(err) {console.log(err); callback(false); return;}
         if(row.length == 0){
@@ -67,7 +68,13 @@ export function userLoginQuery(userInfoJsonInput, callback){
             });
             return;
         }
-        console.log(row);
+        else if(row[0].login_tk != login_tk){
+            console.log("login_tk is wrong");
+            callback({
+                flag : false
+            });
+            return;
+        }
         
         callback({
             flag : true,
@@ -135,7 +142,8 @@ export async function getMyData(nickname){
 
 const mySqlHandler = {
     nicknameDuplicateCheckQuery,
-    userJoinQuery
+    userJoinQuery,
+    userLoginQuery
 };
 
 export default mySqlHandler;

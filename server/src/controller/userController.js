@@ -1,5 +1,6 @@
 import mySqlHandler from "../db/mysql";
 import jwt from 'jsonwebtoken';
+import dotenv from "dotenv";
 
 dotenv.config();
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -52,6 +53,7 @@ export const joinController = async (req, res) => {
 }
 
 export const loginController = async (req, res) => {
+    console.log(req.body.nickname);
     mySqlHandler.userLoginQuery(req.body, (login) => {
         const response = {
           flag      : false,
