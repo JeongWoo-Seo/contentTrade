@@ -28,24 +28,24 @@ export const registDataController = async (req, res) => {
         // make h_k h_data id_data
         snarkInput.makeSnarkInput();
 
-        libsnarkProver.uploadInputAndRunProof(snarkInput.toSnarkInputFormat(), "_" + snarkInput.gethCt());
-        const verifySnarkFormat = JSON.parse(snarkInput.toSnarkVerifyFormat());
+        // libsnarkProver.uploadInputAndRunProof(snarkInput.toSnarkInputFormat(), "_" + snarkInput.gethCt());
+        // const verifySnarkFormat = JSON.parse(snarkInput.toSnarkVerifyFormat());
 
-        const contractVerifyInput = registDataInputJsonToContractFormat(verifySnarkFormat);
-        const contractProof       = getContractProof(snarkInput.gethCt(), `RegistData`);
+        // const contractVerifyInput = registDataInputJsonToContractFormat(verifySnarkFormat);
+        // const contractProof       = getContractProof(snarkInput.gethCt(), `RegistData`);
         
-        // send regist data contract
-        console.log("proof", contractProof);
-        console.log("verify input", contractVerifyInput);
+        // // send regist data contract
+        // console.log("proof", contractProof);
+        // console.log("verify input", contractVerifyInput);
 
-        const receipt = await getTradeContract().registData(
-            contractProof,
-            contractVerifyInput,
-        )
+        // const receipt = await getTradeContract().registData(
+        //     contractProof,
+        //     contractVerifyInput,
+        // )
 
-        if(!(await getTradeContract().isRegisteredData(contractVerifyInput[3]))){
-            return res.send(false);
-        }
+        // if(!(await getTradeContract().isRegisteredData(contractVerifyInput[3]))){
+        //     return res.send(false);
+        // }
 
         const registerDataJson =  _.merge(
             {

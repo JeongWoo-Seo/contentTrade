@@ -3,6 +3,6 @@ import registerContent from './registerContent';
 
 const content = express.Router();
 
-content.use('/content',registerContent);
+content.use('/registerContent',registerContent);
 
 export default content;
