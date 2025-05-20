@@ -6,7 +6,7 @@ import math from '../../utils/math.js';
 import CurveParam from '../../crypto/curveParam.js';
 import FileSystem from '../../utils/file.js';
 import { rawFileToBigIntString } from '../../utils/file.js';
-import PublicKey from './pk.js';
+
 
 class RegistData {
     #data   = null;

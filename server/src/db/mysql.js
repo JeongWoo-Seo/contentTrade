@@ -54,6 +54,17 @@ export function getUserInfoFromId(id, callback){
     });
 }
 
+export async function getUserInfo(lgTk) { 
+    try {
+        const getUserInfoQuery = `SELECT * from user where login_tk=?`
+        const [rows, fields] = await promiseConnection.execute(getUserInfoQuery, [`${lgTk}`]);
+        return rows[0];
+    } catch (error) {
+        console.log(error);
+        return undefined;
+    }
+}
+
 export function userLoginQuery(userInfoJsonInput, callback){
     const nickname = userInfoJsonInput['nickname'];
     const login_tk = userInfoJsonInput['loginTk'];
@@ -143,7 +154,9 @@ export async function getMyData(nickname){
 const mySqlHandler = {
     nicknameDuplicateCheckQuery,
     userJoinQuery,
-    userLoginQuery
+    userLoginQuery,
+    registDataQuery,
+    getUserInfo
 };
 
 export default mySqlHandler;

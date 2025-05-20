@@ -1,17 +1,15 @@
-import mySqlHandler from "../db/mysql";
-
+import {getUserInfo,registDataQuery} from "../db/mysql";
+import SnarkInput from "../libsnark/struct/snarkInput";
+import _ from 'lodash';
 
 
 export const registDataController = async (req, res) => {
     try {
-        const loginTk  = getLoginTk(req);
-
-        const usrInfo = await getUserInfo(loginTk);
-        const addr       = usrInfo['eoa_addr'];
+        const usrInfo = await getUserInfo(req.body.loginTk);//사용자 정보를 얻어올 필요가 있음
+        const addr       = usrInfo['eoa'];
         const data       = req.body['data'];
         const pkOwn      = usrInfo['pk_own'];
 
-        console.log("loginTk : ",loginTk);
         console.log(usrInfo, data);
 
         const snarkInput = new SnarkInput.RegistData();
@@ -83,7 +81,4 @@ export const registDataController = async (req, res) => {
         console.log(error);
         return res.send({flag : false});
     }
-    
-
-    // res.send({flag : false});
 }
