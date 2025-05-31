@@ -14,6 +14,9 @@ crs/*.dat
 /.pnp
 .pnp.js
 node_modules
+.DS_Store
+server/.DS_Store
+server/src/.DS_Store
 
 *.dat
 *.dylib
