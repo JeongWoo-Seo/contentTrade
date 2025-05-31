@@ -1,16 +1,20 @@
 import {getUserInfo,registDataQuery} from "../db/mysql";
 import SnarkInput from "../libsnark/struct/snarkInput";
 import _ from 'lodash';
+import {fileStorePath} from "../config/config"
 
 
 export const registDataController = async (req, res) => {
     try {
-        const usrInfo = await getUserInfo(req.body.loginTk);//사용자 정보를 얻어올 필요가 있음
-        const addr       = usrInfo['eoa'];
-        const data       = req.body['data'];
-        const pkOwn      = usrInfo['pk_own'];
+        const usrInfo = await getUserInfo(req.body.loginTk);
 
-        console.log(usrInfo, data);
+        if (!usrInfo) {
+            return res.send({ flag: false, message: "User not found" });
+        }
+
+        const addr  = usrInfo.eoa;
+        const data  = req.body.data;
+        const pkOwn = usrInfo.pk_own;
 
         const snarkInput = new SnarkInput.RegistData();
         
@@ -66,10 +70,10 @@ export const registDataController = async (req, res) => {
                 return res.send(
                     {
                         flag        : true,
-                        receipt     : receipt,
+                        //receipt     : receipt,
                         h_ct        : snarkInput.gethCt(),
-                        proof       : contractProof,
-                        contractAddr: getContractAddr(),
+                        // proof       : contractProof,
+                        // contractAddr: getContractAddr(),
                     }
                 );
             } catch (error) {

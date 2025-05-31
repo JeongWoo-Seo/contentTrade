@@ -1,9 +1,18 @@
 import mysql from 'mysql2';
+import mysqlPromise from 'mysql2/promise';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const connection = mysql.createConnection(
+    {
+        host: process.env.DATABASE_HOST,
+        user: process.env.DATABASE_USER,
+        password: process.env.DATABASE_PASSWORD,
+        database: process.env.DATABASE_NAME
+    }
+);
+const promiseConnection = await mysqlPromise.createConnection(
     {
         host: process.env.DATABASE_HOST,
         user: process.env.DATABASE_USER,
@@ -54,14 +63,15 @@ export function getUserInfoFromId(id, callback){
     });
 }
 
-export async function getUserInfo(lgTk) { 
+export async function getUserInfo(lgTk) {
     try {
-        const getUserInfoQuery = `SELECT * from user where login_tk=?`
-        const [rows, fields] = await promiseConnection.execute(getUserInfoQuery, [`${lgTk}`]);
-        return rows[0];
+        const query = 'SELECT * FROM user WHERE login_tk = ?';
+        const [rows] = await promiseConnection.execute(query, [lgTk]);
+
+        return rows[0] || null; // 명확하게 존재하지 않을 때 null 반환
     } catch (error) {
-        console.log(error);
-        return undefined;
+        console.error('getUserInfo error:', error);
+        return null;
     }
 }
 
@@ -111,8 +121,12 @@ export async function registDataQuery(registDataJsonInput){
     VALUES('${owner_nickname}', '${title}', '${descript}', '${h_ct}', '${h_data}', '${enc_key}', '${data_path}', '${h_k}')`
 
     try {
-        const [ret] = await promiseConnection.execute(query);
-        console.log(ret);
+        connection.query(query, (err, row) => {
+            if(err) {
+                console.log(err);
+                return false;
+            }
+        });
         return true;
     } catch (error) {
         console.log(error);

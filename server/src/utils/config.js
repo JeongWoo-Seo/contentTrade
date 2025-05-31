@@ -1,13 +1,9 @@
 /* global BigInt */
 
-import bluebird from 'bluebird';
-
 const GANACHE = 0
 const SEPOLIA = 1
 
 var Config = {
-    //homePath        : '/Users/kim/dataTrade-dev-backup/server/',
-    
     dataBlockNum    : '530',
     dataMaxBlockNum : '530',
     maxIdLen        : 32,
