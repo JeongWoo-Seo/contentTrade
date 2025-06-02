@@ -1,10 +1,11 @@
 import { useRef, useState } from "react"
 import { useNavigate } from "react-router-dom";
 import httpCli from '../../utils/http';
-import mimc7 from '../../crypto/mimc';
+import mimc from '../../crypto/mimc';
 import types from '../../utils/types';
 
 export default function Login() {
+    const mimc7 = new mimc.MiMC7();
     const nameRef = useRef();
     const keyRef = useRef();
     const [isLoading, setIsLoading] = useState(false);
@@ -12,11 +13,13 @@ export default function Login() {
 
     function onSubmit(e) {
         e.preventDefault();
-
+        
+        setIsLoading(false);
         if (!isLoading) {
             setIsLoading(true);
-            const login_tk = mimc7.hash(keyRef, types.asciiToHex('login'));
-            httpCli.get("/usr/login", { 'nickname':nameRef,'login_tk': loginTk }).then(res => {
+            const loginTk = mimc7.hash(keyRef.current.value, types.asciiToHex('login'));
+            const loginData = {nickname:nameRef.current.value,login_tk: loginTk }
+            httpCli.post("/user/login", loginData).then(res => {
                 console.log(res.data);
                 if (res.data["flag"] === false) {
                     navigate('/login');

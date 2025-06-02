@@ -45,17 +45,11 @@ export default function RegistData() {
     
     function getByteLengthOfUtf8String(s) {
         let b, i, c;
-        if (s != undefined && s != "") {
+        if (s !== undefined && s !== "") {
             for (b = i = 0; c = s.charCodeAt(i++); b += c >> 11 ? 3 : c >> 7 ? 2 : 1);
             return b;
         }
         return 0;
-    }
-
-    const PrintProof = () => {
-        return (
-            1
-        );
     }
 
     const RegisterDataHandler = async (e) => {
@@ -67,7 +61,25 @@ export default function RegistData() {
             "data"  : `${textFile}`
         }
 
-        //post
+        httpCli.post('/content/registerContent/', reqBody).then(
+            async res => {
+                if(res.flag === false){
+                    alert('fail.')
+                    setLoading(false);
+                }
+                console.log(res)
+                alert('데이터 등록이 완료되었습니다.')
+                //console.log(res.data);
+                //console.log(res.data.receipt);
+                //console.log(res.data.proof);
+
+                //setHCt(res.data.h_ct);
+                //setProof(res.data.proof)
+                //setReceipt(JSON.stringify(res.data.receipt, null, 2));
+                setLoading(false);
+                //setRegister(true);
+            }
+        )
     }
 
     return (
@@ -95,7 +107,6 @@ export default function RegistData() {
                         <div>
 
                             <div>
-                                <PrintProof /><br />
                                 <strong className='paragraph'>receipt : {'\n' + receipt}</strong>
                             </div><br />
                         </div> :

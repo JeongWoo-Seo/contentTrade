@@ -36,6 +36,7 @@ export const joinController = async (req, res) => {
         req.body.eoa = "6";
         //임시코드
 
+        console.log("user join");
         mySqlHandler.userJoinQuery(req.body, async (ret) => {
             if(!ret){return res.status(200).send({flag:false});}
             
@@ -53,7 +54,6 @@ export const joinController = async (req, res) => {
 }
 
 export const loginController = async (req, res) => {
-    console.log(req.body.nickname);
     mySqlHandler.userLoginQuery(req.body, (login) => {
         const response = {
           flag      : false,
@@ -62,8 +62,7 @@ export const loginController = async (req, res) => {
           nickname  : undefined
         };
         try {
-            const {nickname,login_tk} = req.body;
-            if(login.flag && login_tk === login.loginTk ){
+            if(login.flag){
                 response.flag     = true; 
                 response.loginTk  = login.login_tk;
                 response.token    = jwt.sign({sk_enc:login.sk_enc},JWT_SECRET);

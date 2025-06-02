@@ -1,14 +1,17 @@
 import { useState } from 'react';
+import { useNavigate } from "react-router-dom";
 import UserKey from '../../wallet/keyStruct'
 import httpCli from '../../utils/http';
-import mimc7 from '../../crypto/mimc';
+import mimc from '../../crypto/mimc';
 import types from '../../utils/types';
 
 
 export default function Join() {
+    const mimc7 = new mimc.MiMC7();
     const [key, setKey] = useState(null);
     const [nickname, setNickname] = useState(null);
     const [deduplication, setDeduplication] = useState(false);
+    const navigate = useNavigate();
 
     const onClickSkOwnGen = async (e) => {
         //key gen
@@ -27,10 +30,11 @@ export default function Join() {
     };
 
     const onClickDeduplication = async (e) => {
-        //get nickname check
+        const res = await httpCli.get(`/user/join/check/nickname/${nickname}`);
+        if(!res.data){ alert("id already exsist! 😭"); return; }
+        else{ alert(` you can use "${nickname}"`); }
 
         setDeduplication(true);
-
     };
 
     const onClickJoin = async (e) => {
@@ -42,17 +46,18 @@ export default function Join() {
             pkEnc: key.pkEnc,
             addr: key.ena
         }
-      /*  httpCli.post("/", userData).then(res => {
+        httpCli.post("/user/join/join/", userData).then(res => {
             if (res.data["flag"] === false) {
                 alert("이미가입되었거나 올바르지 않은 주소입니다.");
                 return;
             }
-            console.log(res.data['receipt']['blockHash'], res.data['receipt']['transactionHash'])
-            alert("sucess Join" + "\n\nblockHash : " + res.data['receipt']['blockHash'] +
-                "\ntxHash : " + res.data['receipt']['transactionHash'] + '\n');
-            sessionStorage.removeItem('key');
+            alert("가입완료");
+            // console.log(res.data['receipt']['blockHash'], res.data['receipt']['transactionHash'])
+            // alert("sucess Join" + "\n\nblockHash : " + res.data['receipt']['blockHash'] +
+            //     "\ntxHash : " + res.data['receipt']['transactionHash'] + '\n');
+            // sessionStorage.removeItem('key');
             navigate(`/`);
-        });*/
+        });
 
     };
 

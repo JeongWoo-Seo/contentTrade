@@ -77,7 +77,7 @@ export async function getUserInfo(lgTk) {
 
 export function userLoginQuery(userInfoJsonInput, callback){
     const nickname = userInfoJsonInput['nickname'];
-    const login_tk = userInfoJsonInput['loginTk'];
+    const login_tk = userInfoJsonInput['login_tk'];
 
     const loginQuery = `select login_tk, nickname, sk_enc, eoa from user where nickname=?`
     connection.query(loginQuery, [`${nickname}`], (err, row) => {
