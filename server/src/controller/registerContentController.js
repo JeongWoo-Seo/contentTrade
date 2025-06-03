@@ -6,7 +6,9 @@ import {fileStorePath} from "../config/config"
 
 export const registDataController = async (req, res) => {
     try {
-        const usrInfo = await getUserInfo(req.body.loginTk);
+        const jwtHeader = JSON.parse(req.headers['access-token'] || req.query.token)
+        const lgTk = jwtHeader.loginTk;
+        const usrInfo = await getUserInfo(lgTk);
 
         if (!usrInfo) {
             return res.send({ flag: false, message: "User not found" });

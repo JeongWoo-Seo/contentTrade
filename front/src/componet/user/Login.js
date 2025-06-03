@@ -25,6 +25,16 @@ export default function Login() {
                     navigate('/login');
                     return;
                 }
+
+                sessionStorage.setItem('isLogin', true);
+                sessionStorage.setItem('nickname', res.data.nickname);
+                sessionStorage.setItem('loginTk', loginTk);
+                sessionStorage.setItem('jwtToken', res.data.token);
+
+                console.log(res.data)
+
+                httpCli.defaults.headers.common['access-token'] = JSON.stringify(res.data);
+
                 navigate('/');
                 setIsLoading(false);
             });
