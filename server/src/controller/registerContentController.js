@@ -2,14 +2,19 @@ import {getUserInfo,registDataQuery} from "../db/mysql";
 import SnarkInput from "../libsnark/struct/snarkInput";
 import _ from 'lodash';
 import {fileStorePath} from "../config/config"
+import fs from 'fs';
 
 
 export const registDataController = async (req, res) => {
     try {
-        const jwtHeader = JSON.parse(req.headers['access-token'] || req.query.token)
+        
+        const jwtHeader = JSON.parse(req.headers['access-token'])
         const lgTk = jwtHeader.loginTk;
-        const usrInfo = await getUserInfo(lgTk);
+        if(lgTk === null){
+            return res.send({ flag: false, message: "User not login" });
+        }
 
+        const usrInfo = await getUserInfo(lgTk);
         if (!usrInfo) {
             return res.send({ flag: false, message: "User not found" });
         }
@@ -62,7 +67,7 @@ export const registDataController = async (req, res) => {
             }, 
             usrInfo, req.body)
         
-        console.log(registerDataJson);    
+        //console.log(registerDataJson);    
         if(await registDataQuery(registerDataJson)){
             try {
                 fs.writeFileSync(

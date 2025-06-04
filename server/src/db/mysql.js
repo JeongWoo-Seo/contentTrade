@@ -107,7 +107,7 @@ export function userLoginQuery(userInfoJsonInput, callback){
 }
 
 export async function registDataQuery(registDataJsonInput){
-    const owner_nickname    = registDataJsonInput['nickname'];
+    const user_id    = registDataJsonInput['id'];
     const title             = registDataJsonInput['title'];
     const descript          = registDataJsonInput['desc'];
     const h_k               = registDataJsonInput['h_k'];
@@ -117,8 +117,8 @@ export async function registDataQuery(registDataJsonInput){
     const data_path         = registDataJsonInput['data_path'];
 
     const query = 
-    `INSERT INTO data (owner_nickname, title, descript, h_ct, h_data, enc_key, data_path, h_k)
-    VALUES('${owner_nickname}', '${title}', '${descript}', '${h_ct}', '${h_data}', '${enc_key}', '${data_path}', '${h_k}')`
+    `INSERT INTO content_list (user_id, title, descript, h_ct, h_data, enc_key, data_path, h_k)
+    VALUES('${user_id}', '${title}', '${descript}', '${h_ct}', '${h_data}', '${enc_key}', '${data_path}', '${h_k}')`
 
     try {
         connection.query(query, (err, row) => {
