@@ -1,0 +1,71 @@
+.join-container {
+    max-width: 500px;
+    margin: 60px auto;
+    padding: 30px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background-color: #fff;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+    font-family: 'Segoe UI', sans-serif;
+  }
+  
+  h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #1f2937;
+  }
+  
+  .join-button {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px;
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  
+  .join-button:hover {
+    background-color: #2563eb;
+  }
+  
+  .key-info {
+    margin-top: 20px;
+    background: #f3f4f6;
+    padding: 15px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  
+  .nickname-section {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+  }
+  
+  .nickname-section input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+  }
+  
+  .check-button {
+    padding: 10px 15px;
+    background-color: #10b981;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  
+  .check-button:hover {
+    background-color: #059669;
+  }
+  

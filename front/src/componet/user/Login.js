@@ -1,62 +1,69 @@
-import { useRef, useState } from "react"
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import httpCli from '../../utils/http';
-import mimc from '../../crypto/mimc';
-import types from '../../utils/types';
+import httpCli from "../../utils/http";
+import mimc from "../../crypto/mimc";
+import types from "../../utils/types";
+import "../../styles/Login.css";
 
 export default function Login() {
-    const mimc7 = new mimc.MiMC7();
-    const nameRef = useRef();
-    const keyRef = useRef();
-    const [isLoading, setIsLoading] = useState(false);
-    const navigate = useNavigate();
+  const mimc7 = new mimc.MiMC7();
+  const nameRef = useRef();
+  const keyRef = useRef();
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
-    function onSubmit(e) {
-        e.preventDefault();
-        
-        setIsLoading(false);
-        if (!isLoading) {
-            setIsLoading(true);
-            const loginTk = mimc7.hash(keyRef.current.value, types.asciiToHex('login'));
-            const loginData = {nickname:nameRef.current.value,login_tk: loginTk }
-            httpCli.post("/user/login", loginData).then(res => {
-                console.log(res.data);
-                if (res.data["flag"] === false) {
-                    navigate('/login');
-                    return;
-                }
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    if (isLoading) return;
 
-                sessionStorage.setItem('isLogin', true);
-                sessionStorage.setItem('nickname', res.data.nickname);
-                sessionStorage.setItem('loginTk', loginTk);
-                sessionStorage.setItem('jwtToken', res.data.token);
+    setIsLoading(true);
+    const loginTk = mimc7.hash(keyRef.current.value, types.asciiToHex("login"));
+    const loginData = {
+      nickname: nameRef.current.value,
+      login_tk: loginTk,
+    };
 
-                console.log(res.data)
+    try {
+      const res = await httpCli.post("/user/login", loginData);
+      const data = res.data;
 
-                httpCli.defaults.headers.common['access-token'] = JSON.stringify(res.data);
+      if (!data.flag) {
+        alert("로그인 실패. 다시 시도해주세요.");
+        navigate("/login");
+        return;
+      }
 
-                navigate('/');
-                setIsLoading(false);
-            });
-        }
+      sessionStorage.setItem("isLogin", "true");
+      sessionStorage.setItem("nickname", data.nickname);
+      sessionStorage.setItem("loginTk", loginTk);
+      sessionStorage.setItem("jwtToken", data.token);
+
+      httpCli.defaults.headers.common["access-token"] = JSON.stringify(data);
+      navigate("/");
+    } catch (err) {
+      console.error("Login error:", err);
+      alert("서버 오류. 나중에 다시 시도해주세요.");
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    return (
-        <div>
-            <h2>Login</h2>
-            <form onSubmit={onSubmit}>
-                <div className='input_area'>
-                    <label>Name</label>
-                    <input type='text' ref={nameRef} />
-                </div>
-                <div className='input_area'>
-                    <label>Secret Key</label>
-                    <input type='text' ref={keyRef} />
-                </div>
-                <button styled={{ opacity: isLoading ? 0.3 : 1 }} >
-                    Login
-                </button>
-            </form>
+  return (
+    <div className="login-container">
+      <h2>Login</h2>
+      <form onSubmit={onSubmit} className="login-form">
+        <div className="input-group">
+          <label htmlFor="nickname">Nickname</label>
+          <input id="nickname" type="text" ref={nameRef} required />
         </div>
-    )
+        <div className="input-group">
+          <label htmlFor="secret">Secret Key</label>
+          <input id="secret" type="password" ref={keyRef} required />
+        </div>
+        <button type="submit" disabled={isLoading} className="login-button">
+          {isLoading ? "Logging in..." : "Login"}
+        </button>
+      </form>
+    </div>
+  );
 }

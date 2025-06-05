@@ -67,11 +67,8 @@ export default function RegistData() {
                     alert('fail.')
                     setLoading(false);
                 }
-                console.log(res)
                 alert('데이터 등록이 완료되었습니다.')
                 //console.log(res.data);
-                //console.log(res.data.receipt);
-                //console.log(res.data.proof);
 
                 //setHCt(res.data.h_ct);
                 //setProof(res.data.proof)

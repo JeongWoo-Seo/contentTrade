@@ -1,0 +1,37 @@
+/* Header 전체 영역 */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #445e88; /* 진한 네이비 */
+    padding: 16px 32px;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* 로고 스타일 */
+  .logo a {
+    font-size: 24px;
+    font-weight: bold;
+    text-decoration: none;
+    color: #ffffff;
+  }
+  
+  /* 메뉴 영역 */
+  .menu {
+    display: flex;
+    gap: 16px;
+  }
+  
+  /* 메뉴 링크 스타일 */
+  .link {
+    color: #272626;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+  
+  .link:hover {
+    color: #60a5fa; /* 밝은 파란색 */
+  }
+  
