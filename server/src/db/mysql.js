@@ -22,44 +22,62 @@ const promiseConnection = await mysqlPromise.createConnection(
 );
 
 export function nicknameDuplicateCheckQuery(nickname, callback) {
-    const duplicateCheck = `select nickname from user where nickname=?`;
-    connection.query(duplicateCheck, [`${nickname}`], (err, res) => {
-        if(err) { callback(err, false); }
-        callback(null, res.length==0);
+    const query = `SELECT nickname FROM user WHERE nickname = ?`;
+
+    connection.query(query, [nickname], (err, results) => {
+        if (err) {
+            return callback(err, false);
+        }
+        // 중복이 없으면 true, 있으면 false
+        callback(null, results.length === 0);
     });
 }
 
-export function userJoinQuery(userInfoJson, callback){
+export function userJoinQuery(userInfoJson, callback) {
+    const {
+        loginTk,
+        nickname,
+        skEnc,
+        pkOwn,
+        pkEnc,
+        addr,
+        eoa
+    } = userInfoJson;
 
-    const loginTk  = userInfoJson['loginTk'];
-    const nickname = userInfoJson['nickname'];
-    const skEnc    = userInfoJson['skEnc'];
-    const pkOwn    = userInfoJson['pkOwn'];
-    const pkEnc    = userInfoJson['pkEnc'];
-    const addr     = userInfoJson['addr'];
-    const EOA      = userInfoJson['eoa'];
-    const userInsertUserQuery = 
-        `INSERT INTO user (login_tk, nickname, sk_enc, pk_own, pk_enc, addr, eoa) 
-        VALUES('${loginTk}', '${nickname}','${skEnc}', '${pkOwn}', '${pkEnc}', '${addr}', '${EOA}');`
-    connection.query(userInsertUserQuery, (err, result) => {
-        if(err){console.log(err); callback(false); return;}
-        console.log("userInsertUserQuery",result);
+    const query = `
+        INSERT INTO user (login_tk, nickname, sk_enc, pk_own, pk_enc, addr, eoa) 
+        VALUES (?, ?, ?, ?, ?, ?, ?);
+    `;
+
+    const values = [loginTk, nickname, skEnc, pkOwn, pkEnc, addr, eoa];
+
+    connection.query(query, values, (err, result) => {
+        if (err) {
+            console.error('User insert failed:', err);
+            return callback(false);
+        }
+
+        console.log("User inserted successfully:", result);
         callback(true);
-    })
-    
+    });
 }
 
-export function getUserInfoFromId(id, callback){
-    const getUserInfo = `select * from user where id=?`;
+export function getUserInfoFromId(id, callback) {
+    const query = `SELECT * FROM user WHERE id = ?`;
 
-    connection.query(getUserInfo, [`${id}`], (err, row) => {
-        if(err) {console.log(err); callback(err, null); return;}
-        else if(row.length == 0){
-            console.log("id does not exist");
-            callback("id does not exist", null);
-            return;
+    connection.query(query, [id], (err, rows) => {
+        if (err) {
+            console.error('DB Error:', err);
+            return callback(err, null);
         }
-        callback(null, row[0]);
+
+        if (rows.length === 0) {
+            const msg = 'ID does not exist';
+            console.log(msg);
+            return callback(msg, null);
+        }
+
+        callback(null, rows[0]);
     });
 }
 
@@ -68,109 +86,141 @@ export async function getUserInfo(lgTk) {
         const query = 'SELECT * FROM user WHERE login_tk = ?';
         const [rows] = await promiseConnection.execute(query, [lgTk]);
 
-        return rows[0] || null; // 명확하게 존재하지 않을 때 null 반환
+        // 사용자가 존재하지 않으면 null 반환
+        return rows.length > 0 ? rows[0] : null;
     } catch (error) {
         console.error('getUserInfo error:', error);
         return null;
     }
 }
 
-export function userLoginQuery(userInfoJsonInput, callback){
-    const nickname = userInfoJsonInput['nickname'];
-    const login_tk = userInfoJsonInput['login_tk'];
+export function userLoginQuery(userInfoJsonInput, callback) {
+    const { nickname, login_tk } = userInfoJsonInput;
 
-    const loginQuery = `select login_tk, nickname, sk_enc, eoa from user where nickname=?`
-    connection.query(loginQuery, [`${nickname}`], (err, row) => {
-        if(err) {console.log(err); callback(false); return;}
-        if(row.length == 0){
-            console.log("user does not exist");
-            callback({
-                flag : false
-            });
-            return;
+    const query = `
+        SELECT login_tk, nickname, sk_enc, eoa 
+        FROM user 
+        WHERE nickname = ?
+    `;
+
+    connection.query(query, [nickname], (err, rows) => {
+        if (err) {
+            console.error('DB Error:', err);
+            return callback(false);
         }
-        else if(row[0].login_tk != login_tk){
-            console.log("login_tk is wrong");
-            callback({
-                flag : false
-            });
-            return;
+
+        if (rows.length === 0) {
+            console.log('User does not exist');
+            return callback({ flag: false });
         }
-        
+
+        const user = rows[0];
+
+        if (user.login_tk !== login_tk) {
+            console.log('login_tk is incorrect');
+            return callback({ flag: false });
+        }
+
         callback({
-            flag : true,
-            nickname : row[0].nickname,
-            login_tk : row[0].login_tk,
-            sk_enc   : row[0].sk_enc,
+            flag: true,
+            nickname: user.nickname,
+            login_tk: user.login_tk,
+            sk_enc: user.sk_enc,
         });
     });
 }
 
 export async function registDataQuery(registDataJsonInput){
-    const user_id    = registDataJsonInput['id'];
-    const title             = registDataJsonInput['title'];
-    const descript          = registDataJsonInput['desc'];
-    const h_k               = registDataJsonInput['h_k'];
-    const h_ct              = registDataJsonInput['h_ct'];
-    const h_data            = registDataJsonInput['h_data'];
-    const enc_key           = registDataJsonInput['enc_key'];
-    const data_path         = registDataJsonInput['data_path'];
+    const {
+        id: user_id,
+        title,
+        desc: descript,
+        h_k,
+        h_ct,
+        h_data,
+        enc_key,
+        data_path
+    } = registDataJsonInput;
 
-    const query = 
-    `INSERT INTO content_list (user_id, title, descript, h_ct, h_data, enc_key, data_path, h_k)
-    VALUES('${user_id}', '${title}', '${descript}', '${h_ct}', '${h_data}', '${enc_key}', '${data_path}', '${h_k}')`
+    const query = `
+        INSERT INTO content_list 
+        (user_id, title, descript, h_ct, h_data, enc_key, data_path, h_k)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const values = [user_id, title, descript, h_ct, h_data, enc_key, data_path, h_k];
 
     try {
         connection.query(query, (err, row) => {
             if(err) {
-                console.log(err);
+                console.error('Query Error:', err);
                 return false;
             }
         });
         return true;
     } catch (error) {
-        console.log(error);
+        console.error('Insert Failed:', error);
         return false;
     }
 }
 
-export async function getDataList(ind, callback) { 
-    const getDataQuery = 
-    `SELECT title, descript, owner_nickname from data LIMIT ${ind*10}, 10;`
+export async function getDataList(pageIndex) {
+    const offset = pageIndex * 10;
+    const query = `
+        SELECT title, descript, user_id 
+        FROM content_list 
+        LIMIT ?, 10;
+    `;
 
-    const [data] = await promiseConnection.execute(getDataQuery);
-    console.log(data);
-    return data;
+    try {
+        const [data] = await promiseConnection.execute(query, [offset]);
+        return data;
+    } catch (error) {
+        console.error('Error fetching paginated data:', error);
+        return [];
+    }
 }
 
-export async function getAllDataList (callback){
-    const getDataQuery = 
-    `SELECT title, descript, owner_nickname, h_ct from data;`
 
-    const [data] = await promiseConnection.execute(getDataQuery)
-    console.log(data);
-    return data;
+export async function getAllDataList() {
+    const query = `
+        SELECT title, descript, user_id, h_ct 
+        FROM content_list;
+    `;
+
+    try {
+        const [data] = await promiseConnection.execute(query);
+        return data;
+    } catch (error) {
+        console.error('Error fetching all data:', error);
+        return [];
+    }
 }
 
-export async function getMyData(nickname){
-    const getMyDataQuery = 
-    `SELECT title, descript, h_ct, enc_key FROM data WHERE owner_nickname='${nickname}';`
-    
-    const [rows, fields] = await promiseConnection.execute(getMyDataQuery);
-    console.log(rows);
-    return rows
+export async function getMyData(user_id) {
+    const query = `
+        SELECT title, descript, h_ct, enc_key 
+        FROM content_list 
+        WHERE user_id = ?;
+    `;
+
+    try {
+        const [rows] = await promiseConnection.execute(query, [user_id]);
+        return rows;
+    } catch (error) {
+        console.error('Error fetching user data:', error);
+        return [];
+    }
 }
-// connection.query('SELECT * FROM user;', function (error, results, fields) {
-//   if (error) throw error;
-//   console.log('user: ', results);
-// });
+
 
 const mySqlHandler = {
     nicknameDuplicateCheckQuery,
     userJoinQuery,
     userLoginQuery,
     registDataQuery,
-    getUserInfo
+    getUserInfo,
+    getAllDataList
 };
 
 export default mySqlHandler;
