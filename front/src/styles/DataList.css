@@ -1,0 +1,65 @@
+.content-list {
+    padding: 20px;
+    font-family: "Arial", sans-serif;
+  }
+  
+  h2 {
+    margin-bottom: 16px;
+    color: #333;
+  }
+  
+  .status-msg {
+    padding: 10px;
+    font-size: 16px;
+    color: #555;
+  }
+  
+  .status-msg.error {
+    color: red;
+  }
+  
+  .content-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    table-layout: auto;
+  }
+  
+  .content-table th,
+  .content-table td {
+    padding: 12px 16px;
+    border: 1px solid #ddd;
+    text-align: left;
+  }
+  
+  .content-table th {
+    background-color: #f5f5f5;
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .content-table tr:nth-child(even) {
+    background-color: #fafafa;
+  }
+  
+  .buy-column {
+    width: 80px;
+    text-align: center;
+  }
+  
+  .buy-button {
+    background-color: #1976d2;
+    color: white;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .buy-button:hover {
+    background-color: #125ca1;
+  }
+  

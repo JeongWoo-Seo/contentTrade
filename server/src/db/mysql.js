@@ -130,7 +130,7 @@ export function userLoginQuery(userInfoJsonInput, callback) {
     });
 }
 
-export async function registDataQuery(registDataJsonInput){
+export async function registDataQuery(registDataJsonInput) {
     const {
         id: user_id,
         title,
@@ -152,7 +152,7 @@ export async function registDataQuery(registDataJsonInput){
 
     try {
         connection.query(query, (err, row) => {
-            if(err) {
+            if (err) {
                 console.error('Query Error:', err);
                 return false;
             }
