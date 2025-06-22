@@ -5,10 +5,11 @@ server/db/*.json
 server/node_modules/
 server/src/core/libsnark/js-libsnark-opt/node_modules/
 server/src/core/libsnark/js-libsnark-opt/libsnark/
-tradeContract/node_modules/
-tradeContract/build/
-tradeContract/package-lock.json
-tradeContract/contracts/artifacts/
+contract/node_modules/
+contract/build/
+contract/package-lock.json
+contract/contracts/artifacts/
+contract/keys.json
 crs/*.json
 crs/*.dat
 /.pnp
