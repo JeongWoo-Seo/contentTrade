@@ -36,9 +36,9 @@ contract Trade {
     uint256 private constant ACCEPT_NUM_INPUTS = 6;
 
     constructor(
-        uint256[] memory _registContent_vk,
-        uint256[] memory _orderContent_vk,
-        uint256[] memory _acceptOrder_vk
+//        uint256[] memory _registContent_vk,
+//        uint256[] memory _orderContent_vk,
+//        uint256[] memory _acceptOrder_vk
     ){
         owner = msg.sender;
         //registContent_vk = _registContent_vk;
