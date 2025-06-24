@@ -1,5 +1,5 @@
 import server from "./src/server";
-import {deploy} from "./src/contract/deploy";
+import {initContract} from "./src/contract/deploy";
 
-await deploy();
+await initContract();
 server();

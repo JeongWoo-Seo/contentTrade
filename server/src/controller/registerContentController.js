@@ -1,8 +1,9 @@
 import {getUserInfo,registDataQuery} from "../db/mysql";
 import SnarkInput from "../libsnark/struct/snarkInput";
 import _ from 'lodash';
-import {fileStorePath} from "../config/config"
+import {fileStorePath} from "../config/config";
 import fs from 'fs';
+import {registData} from "../contract/contract";
 
 
 export const registDataController = async (req, res) => {
@@ -38,23 +39,23 @@ export const registDataController = async (req, res) => {
         snarkInput.makeSnarkInput();
 
         // libsnarkProver.uploadInputAndRunProof(snarkInput.toSnarkInputFormat(), "_" + snarkInput.gethCt());
-        // const verifySnarkFormat = JSON.parse(snarkInput.toSnarkVerifyFormat());
+        const verifySnarkFormat = JSON.parse(snarkInput.toSnarkVerifyFormat());
 
-        // const contractVerifyInput = registDataInputJsonToContractFormat(verifySnarkFormat);
+        const contractVerifyInput = registDataInputJsonToContractFormat(verifySnarkFormat);
         // const contractProof       = getContractProof(snarkInput.gethCt(), `RegistData`);
         
         // // send regist data contract
         // console.log("proof", contractProof);
-        // console.log("verify input", contractVerifyInput);
+        console.log("verify input", contractVerifyInput);
 
-        // const receipt = await getTradeContract().registData(
-        //     contractProof,
-        //     contractVerifyInput,
-        // )
+        const receipt = await registData(
+            contractProof,
+            contractVerifyInput,
+        )
 
-        // if(!(await getTradeContract().isRegisteredData(contractVerifyInput[3]))){
-        //     return res.send(false);
-        // }
+        if(receipt === null){
+            return res.send(false);
+        }
 
         const registerDataJson =  _.merge(
             {
@@ -80,7 +81,6 @@ export const registDataController = async (req, res) => {
                         //receipt     : receipt,
                         h_ct        : snarkInput.gethCt(),
                         // proof       : contractProof,
-                        // contractAddr: getContractAddr(),
                     }
                 );
             } catch (error) {

@@ -1,38 +1,50 @@
 import fs from "fs";
 import Web3 from "web3";
-import {contractsBuildPath,ganacheNetwork} from "../config/config";
+import { contractsBuildPath, ganacheNetwork} from "../config/config";
 
-// 1. Ganache-CLI 연결
 const ContractJson = JSON.parse(fs.readFileSync(contractsBuildPath + 'Trade.json', 'utf-8'));
-const abi = ContractJson.abi;
-const bytecode = ContractJson.bytecode;
+const { abi, bytecode } = ContractJson;
 
 export const web3 = new Web3(ganacheNetwork.testProvider);
-export const contractInstance = new web3.eth.Contract(abi);
 export let tradeContract = undefined;
+export let serverAccountAddress = undefined;
 
-// 3. 배포 함수
-export async function deploy() {
+export async function initContract() {
+    try {
+        const contractAddress = await deployContract();
+        tradeContract = new web3.eth.Contract(abi, contractAddress);
+        console.log("✅ contract 인스턴스 초기화 완료!");
+    } catch (err) {
+        console.error("initContract 실패:", err);
+    }
+}
+
+async function deployContract() {
     try {
         const accounts = await web3.eth.getAccounts();
-        const deployedContract = await contractInstance
-            .deploy({ 
+
+        const contractInstance = new web3.eth.Contract(abi);
+
+        const deployed = await contractInstance
+            .deploy({
                 data: "0x" + bytecode,
-                // arguments : [
-                //     getContractFormatVk('RegistData'), 
-                //     getContractFormatVk('GenTrade'),
-                //     getContractFormatVk('AcceptTrade')
-                // ]
-             })
+                // arguments: [
+                //   getContractFormatVk("RegistData"),
+                //   getContractFormatVk("GenTrade"),
+                //   getContractFormatVk("AcceptTrade"),
+                // ],
+            })
             .send({
                 from: accounts[0],
                 gas: 3000000,
-                gasPrice: 1
+                gasPrice: ganacheNetwork.gasPrice
             });
-        
-        tradeContract = deployedContract;
-        console.log("✅ contract 배포 완료! 주소:", deployedContract.options.address);
+
+            serverAccountAddress = deployed.options.address;
+        console.log("✅ contract 배포 완료! 주소:", deployed.options.address);
+        return deployed.options.address;
     } catch (error) {
-        console.log("deploy:", error);
+        console.error("❌ deploy 실패:", error);
+        throw error;
     }
 }
