@@ -4,7 +4,8 @@ import _ from 'lodash';
 import {fileStorePath} from "../config/config";
 import fs from 'fs';
 import {registData} from "../contract/contract";
-
+import {getContractProof,registDataInputJsonToContractFormat} from "../contract/utils"
+//import LibSnark from "../libsnark/libsnark";
 
 export const registDataController = async (req, res) => {
     try {
@@ -42,18 +43,16 @@ export const registDataController = async (req, res) => {
         const verifySnarkFormat = JSON.parse(snarkInput.toSnarkVerifyFormat());
 
         const contractVerifyInput = registDataInputJsonToContractFormat(verifySnarkFormat);
+
         // const contractProof       = getContractProof(snarkInput.gethCt(), `RegistData`);
-        
-        // // send regist data contract
-        // console.log("proof", contractProof);
+        //임시 proof 값
+        const contractProof ={a : [" " , " "] , b: [[" " , " "] , [" " , " "]] , c : [" " , " "]};
+
         console.log("verify input", contractVerifyInput);
 
-        const receipt = await registData(
-            contractProof,
-            contractVerifyInput,
-        )
+        const result = await registData(contractProof,contractVerifyInput);
 
-        if(receipt === null){
+        if(result.flag === false){
             return res.send(false);
         }
 
@@ -78,7 +77,7 @@ export const registDataController = async (req, res) => {
                 return res.send(
                     {
                         flag        : true,
-                        //receipt     : receipt,
+                        //receipt     : result.receipt,
                         h_ct        : snarkInput.gethCt(),
                         // proof       : contractProof,
                     }

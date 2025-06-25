@@ -1,14 +1,20 @@
-export let homePath = '/Users/sjw/project/contentTrade';
+export const homePath = '/Users/sjw/project/contentTrade';
+
+//crs
+export const crsPath = homePath + `/crs`;
 
 //server
-export let fileStorePath = homePath + `/server/fileDb/`;
+export const fileStorePath = homePath + `/server/fileDb/`;
+export const snarkPath = fileStorePath;
 
 //contract
-export let contractsBuildPath = homePath + `/contract/build/contracts/`;
-export let ganacheAccountKeyPath = homePath + `/contract/keys.json`;
+export const contractsBuildPath = homePath + `/contract/build/contracts/`;
+export const ganacheAccountKeyPath = homePath + `/contract/keys.json`;
+
+export const accountAddressList = [];
 
 //ganache
-export let ganacheNetwork ={
+export const ganacheNetwork ={
     networkId       : '1234',
     testProvider    : 'http://127.0.0.1:7545', // ganache link
     gasPrice        : 1,

@@ -1,6 +1,7 @@
 import fs from "fs";
 import Web3 from "web3";
-import { contractsBuildPath, ganacheNetwork} from "../config/config";
+import { contractsBuildPath, ganacheNetwork,accountAddressList} from "../config/config";
+import {getContractFormatVk} from "./utils";
 
 const ContractJson = JSON.parse(fs.readFileSync(contractsBuildPath + 'Trade.json', 'utf-8'));
 const { abi, bytecode } = ContractJson;
@@ -39,7 +40,8 @@ async function deployContract() {
                 gas: 3000000,
                 gasPrice: ganacheNetwork.gasPrice
             });
-
+            
+            accountAddressList.splice(0, accountAddressList.length, ...accounts);
             serverAccountAddress = deployed.options.address;
         console.log("✅ contract 배포 완료! 주소:", deployed.options.address);
         return deployed.options.address;

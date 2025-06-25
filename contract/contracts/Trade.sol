@@ -46,8 +46,8 @@ contract Trade {
         //acceptOrder_vk = _acceptOrder_vk;
     }
 
-    //function registContent( uint256[] memory proof, uint256[REGISTDATA_NUM_INPUTS] memory inputs) 
-    function registContent( uint256[REGISTDATA_NUM_INPUTS] memory inputs) 
+    //function registContent( uint256[REGISTDATA_NUM_INPUTS] memory inputs)
+    function registContent( uint256[] memory proof, uint256[REGISTDATA_NUM_INPUTS] memory inputs)  
         public  
         returns(bool)
     {   
@@ -67,9 +67,8 @@ contract Trade {
         return h_ct_list[inputs[3]];
     }
     
-
-    //function orderContent( uint256[] memory proof, uint256[ORDER_NUM_INPUTS] memory inputs)
-    function orderContent( uint256[ORDER_NUM_INPUTS] memory inputs)
+    // function orderContent( uint256[ORDER_NUM_INPUTS] memory inputs)
+    function orderContent( uint256[] memory proof, uint256[ORDER_NUM_INPUTS] memory inputs)
         public
         returns(bool)
     {
@@ -106,8 +105,8 @@ contract Trade {
         return true;
     }
 
-    //function acceptOrder(uint256[] memory proof,uint256[ACCEPT_NUM_INPUTS] memory inputs)
-    function acceptOrder(uint256[ACCEPT_NUM_INPUTS] memory inputs)
+    // function acceptOrder(uint256[ACCEPT_NUM_INPUTS] memory inputs)
+    function acceptOrder(uint256[] memory proof,uint256[ACCEPT_NUM_INPUTS] memory inputs)
         public
         returns(bool)
     {
