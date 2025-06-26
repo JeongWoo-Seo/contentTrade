@@ -15,7 +15,7 @@ export default function DataList() {
         const fetchContent = async () => {
             try {
                 const res = await httpCli.get("/content/list/getAll");
-                if (!res.data || res.data.flag === false) setError(true);
+                if (res.data.flag === false) setError(true);
                 else setContentData(res.data.data || []);
             } catch (err) {
                 console.error("Error fetching content list:", err);

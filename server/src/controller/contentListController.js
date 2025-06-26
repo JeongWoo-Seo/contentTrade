@@ -4,13 +4,13 @@ export const getAllContentListController = async (req, res) => {
     try {
         const dataList = await getAllDataList();
 
-        if (!dataList || dataList.length === 0) {
+        if (dataList.flag === false) {
             return res.send({ flag: false, message: "콘텐츠가 존재하지 않습니다." });
         }
 
-        res.send({ flag: true, data: dataList });
+        res.send({ flag: true, data: dataList.data });
     } catch (error) {
-        console.error("Error in getAllContentListController:", error);
-        res.status(500).send({ flag: false, message: "서버 오류가 발생했습니다." });
+        console.error("getAllContentListController 오류:", error);
+        res.status(500).send({ flag: false, message: "Database 오류가 발생했습니다." });
     }
 };

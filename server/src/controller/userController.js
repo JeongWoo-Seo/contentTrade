@@ -1,6 +1,7 @@
 import mySqlHandler from "../db/mysql";
 import jwt from 'jsonwebtoken';
 import dotenv from "dotenv";
+import {accountAddressList} from "../config/config"
 
 dotenv.config();
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -13,38 +14,16 @@ export const nicknameDeduplicateCheckController = async (req, res) => {
 }
 
 export const joinController = async (req, res) => {
-
-    // if(!JoinHelper.idLengthCheck(req.body["nickname"])){
-    //     return res.status(400).send("id is too long");
-    // }
     
-    // const account = await getGanacheAccounts(usrcnt);
-
     try {
-        // const tradeContract = getTradeContract();
-        // const pk_own = hexToDec(req.body['pkOwn'])
-        // const pk_enc = hexToDec(req.body['pkEnc'])
-        // const receipt = await tradeContract.registUser(
-        //     pk_own,
-        //     pk_enc,
-        //     account.address
-        // )
-        
-        // _.set(req.body, 'eoa', _.get(account, 'address'))
-        // _.set(req.body, 'receipt', receipt)
-        //임시코드
-        req.body.eoa = "6";
-        //임시코드
-
+        const count = await mySqlHandler.getUserCount();
+        req.body.eoa = accountAddressList[count+1];
         console.log("user join");
         mySqlHandler.userJoinQuery(req.body, async (ret) => {
             if(!ret){return res.status(200).send({flag:false});}
-            
-            //usrcnt += 1;
+
             res.status(200).send({
                 flag: true
-                // account : account,
-                // receipt : receipt
             });
         })
     } catch (error) {
@@ -59,7 +38,8 @@ export const loginController = async (req, res) => {
           flag      : false,
           token     : undefined,
           loginTk   : undefined,
-          nickname  : undefined
+          nickname  : undefined,
+          eoa       : undefined
         };
         try {
             if(login.flag){
@@ -67,6 +47,7 @@ export const loginController = async (req, res) => {
                 response.loginTk  = login.login_tk;
                 response.token    = jwt.sign({sk_enc:login.sk_enc},JWT_SECRET);
                 response.nickname = login.nickname;
+                response.eoa      = login.eoa;
               }
               res.status(200).send(response); 
         } catch (error) {

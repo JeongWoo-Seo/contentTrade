@@ -57,9 +57,21 @@ export function userJoinQuery(userInfoJson, callback) {
             return callback(false);
         }
 
-        console.log("User inserted successfully:", result);
+        console.log("insert user successfully:");
         callback(true);
     });
+}
+
+export async function  getUserCount(){
+    try {
+        const query = 'SELECT COUNT(*) FROM user';
+        const [rows] = await promiseConnection.execute(query);
+
+        return rows[0];
+    } catch (error) {
+        console.error('getUserCount error:', error);
+        return null;
+    }
 }
 
 export function getUserInfoFromId(id, callback) {
@@ -125,7 +137,8 @@ export function userLoginQuery(userInfoJsonInput, callback) {
             flag: true,
             nickname: user.nickname,
             login_tk: user.login_tk,
-            sk_enc: user.sk_enc,
+            sk_enc  : user.sk_enc,
+            eoa     : user.eoa
         });
     });
 }
@@ -190,10 +203,10 @@ export async function getAllDataList() {
 
     try {
         const [data] = await promiseConnection.execute(query);
-        return data;
+        return {flag : true, data: data};
     } catch (error) {
         console.error('Error fetching all data:', error);
-        return [];
+        return {flag :false};
     }
 }
 
@@ -220,7 +233,8 @@ const mySqlHandler = {
     userLoginQuery,
     registDataQuery,
     getUserInfo,
-    getAllDataList
+    getAllDataList,
+    getUserCount
 };
 
 export default mySqlHandler;

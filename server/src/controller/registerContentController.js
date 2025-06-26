@@ -46,9 +46,7 @@ export const registDataController = async (req, res) => {
 
         // const contractProof       = getContractProof(snarkInput.gethCt(), `RegistData`);
         //임시 proof 값
-        const contractProof ={a : [" " , " "] , b: [[" " , " "] , [" " , " "]] , c : [" " , " "]};
-
-        console.log("verify input", contractVerifyInput);
+        const contractProof =[" "," " ," "," "," " , " "," " , " "];
 
         const result = await registData(contractProof,contractVerifyInput);
 
@@ -74,6 +72,8 @@ export const registDataController = async (req, res) => {
                     registerDataJson['data_path'],
                     JSON.stringify(registerDataJson, null, 2)
                 )
+
+                console.log("regist content successfully");
                 return res.send(
                     {
                         flag        : true,

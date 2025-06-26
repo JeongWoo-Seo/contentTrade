@@ -37,6 +37,7 @@ export default function Login() {
       sessionStorage.setItem("nickname", data.nickname);
       sessionStorage.setItem("loginTk", loginTk);
       sessionStorage.setItem("jwtToken", data.token);
+      sessionStorage.setItem("accountAddress", data.eoa);
 
       httpCli.defaults.headers.common["access-token"] = JSON.stringify(data);
       navigate("/");
