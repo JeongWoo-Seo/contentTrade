@@ -46,7 +46,7 @@ export const registDataController = async (req, res) => {
 
         // const contractProof       = getContractProof(snarkInput.gethCt(), `RegistData`);
         //임시 proof 값
-        const contractProof =[" "," " ," "," "," " , " "," " , " "];
+        const contractProof =["0x1","0x1","0x1","0x1","0x1","0x1","0x1","0x1"];
 
         const result = await registData(contractProof,contractVerifyInput);
 
@@ -64,8 +64,7 @@ export const registDataController = async (req, res) => {
                 'h_k'   : snarkInput.gethK(),
             }, 
             usrInfo, req.body)
-        
-        //console.log(registerDataJson);    
+            
         if(await registDataQuery(registerDataJson)){
             try {
                 fs.writeFileSync(
@@ -79,7 +78,6 @@ export const registDataController = async (req, res) => {
                         flag        : true,
                         //receipt     : result.receipt,
                         h_ct        : snarkInput.gethCt(),
-                        // proof       : contractProof,
                     }
                 );
             } catch (error) {

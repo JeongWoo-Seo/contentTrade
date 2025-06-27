@@ -18,10 +18,11 @@ export const joinController = async (req, res) => {
     try {
         const count = await mySqlHandler.getUserCount();
         req.body.eoa = accountAddressList[count+1];
-        console.log("user join");
+        
         mySqlHandler.userJoinQuery(req.body, async (ret) => {
             if(!ret){return res.status(200).send({flag:false});}
-
+            
+            console.log("user join");
             res.status(200).send({
                 flag: true
             });

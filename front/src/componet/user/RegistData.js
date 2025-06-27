@@ -18,7 +18,12 @@ export default function RegistData() {
     const titleChangeHandler = e => setTitle(e.target.value);
     const descChangeHandler = e => setDesc(e.target.value);
 
-    const handleFileUploadClick = () => fileInput.current.click();
+    const handleFileUploadClick = () => {
+        if (fileInput.current) {
+          fileInput.current.value = ""; 
+          fileInput.current.click();
+        }
+      };
 
     const handleChange = e => {
         fileReader.readAsText(e.target.files[0]);
