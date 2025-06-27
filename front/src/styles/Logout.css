@@ -1,0 +1,37 @@
+.logout-container {
+    max-width: 400px;
+    margin: 100px auto;
+    padding: 2rem;
+    border: 1px solid #ccc;
+    border-radius: 1rem;
+    background-color: #f9f9f9;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  .logout-title {
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+    color: #333;
+  }
+  
+  .logout-nickname {
+    margin-bottom: 1.5rem;
+    font-size: 1.1rem;
+  }
+  
+  .logout-button {
+    padding: 0.6rem 1.5rem;
+    font-size: 1rem;
+    background-color: #ff5252;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  
+  .logout-button:hover {
+    background-color: #e04848;
+  }
+  

@@ -1,12 +1,14 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef,useEffect } from "react";
 import LoadingPage from "../LoadingPage";
 import httpCli from "../../utils/http.js";
 import "../../styles/RegistData.css";
+import { useNavigate } from "react-router-dom";
 
 export default function RegistData() {
     const maxUtf8DataSize = 16430;
     const fileInput = useRef(null);
     const fileReader = new FileReader();
+    const navigate = useNavigate();
 
     const [title, setTitle] = useState("");
     const [textFile, setTextFile] = useState("");
@@ -17,6 +19,12 @@ export default function RegistData() {
 
     const titleChangeHandler = e => setTitle(e.target.value);
     const descChangeHandler = e => setDesc(e.target.value);
+
+    useEffect(() => {
+        if (sessionStorage.getItem("isLogin") !== "true") {
+          navigate("/login");
+        }
+    }, [navigate]);
 
     const handleFileUploadClick = () => {
         if (fileInput.current) {

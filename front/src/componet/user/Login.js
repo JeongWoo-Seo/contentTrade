@@ -39,6 +39,8 @@ export default function Login() {
       sessionStorage.setItem("jwtToken", data.token);
       sessionStorage.setItem("accountAddress", data.eoa);
 
+      window.dispatchEvent(new Event("loginStatusChanged")); //header Login 표시 변경
+
       httpCli.defaults.headers.common["access-token"] = JSON.stringify(data);
       navigate("/");
     } catch (err) {

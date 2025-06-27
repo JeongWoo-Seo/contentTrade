@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import httpCli from "../../utils/http.js";
+import { useNavigate } from "react-router-dom";
 import "../../styles/DataList.css";
 
 export default function DataList() {
@@ -7,9 +8,17 @@ export default function DataList() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
+    const navigate = useNavigate();
+
     const contentBuy = (item) => {
         alert(`"${item.title}" 구매 요청이 전송되었습니다.`);
     };
+
+    useEffect(() => {
+            if (sessionStorage.getItem("isLogin") !== "true") {
+              navigate("/login");
+            }
+    }, [navigate]);
 
     useEffect(() => {
         const fetchContent = async () => {

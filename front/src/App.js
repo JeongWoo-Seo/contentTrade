@@ -7,6 +7,7 @@ import Empty from "./componet/Empty";
 import Header from "./componet/Header";
 import DataList from "./componet/user/DataList";
 import RegistData from "./componet/user/RegistData";
+import Logout from "./componet/user/Logout";
 
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/logout" element={<Logout />} />
           <Route path="/join" element={<Join />} />
           <Route path="/content_regist" element= {<RegistData />}/>
           <Route path="/content_list" element={<DataList />} />
