@@ -1,4 +1,4 @@
-import { web3, tradeContract, serverAccountAddress } from "./deploy";
+import { web3, tradeContract,serverAccountAddress } from "./deploy";
 import { ganacheNetwork } from "../config/config"
 
 export async function registData(proof, inputs) {

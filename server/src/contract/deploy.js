@@ -42,7 +42,7 @@ async function deployContract() {
             });
             
             accountAddressList.splice(0, accountAddressList.length, ...accounts);
-            serverAccountAddress = deployed.options.address;
+            serverAccountAddress = accounts[0];
         console.log("✅ contract 배포 완료! 주소:", deployed.options.address);
         return deployed.options.address;
     } catch (error) {

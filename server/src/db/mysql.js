@@ -67,7 +67,7 @@ export async function  getUserCount(){
         const query = 'SELECT COUNT(*) FROM user';
         const [rows] = await promiseConnection.execute(query);
 
-        return rows[0];
+        return rows[0]['COUNT(*)'];
     } catch (error) {
         console.error('getUserCount error:', error);
         return null;
@@ -164,15 +164,10 @@ export async function registDataQuery(registDataJsonInput) {
     const values = [user_id, title, descript, h_ct, h_data, enc_key, data_path, h_k];
 
     try {
-        connection.query(query, (err, row) => {
-            if (err) {
-                console.error('Query Error:', err);
-                return false;
-            }
-        });
+        connection.query(query, values);
         return true;
     } catch (error) {
-        console.error('Insert Failed:', error);
+        console.error('mysql registDataQuery error:', error);
         return false;
     }
 }

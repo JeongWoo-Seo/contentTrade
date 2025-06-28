@@ -65,7 +65,8 @@ export const registDataController = async (req, res) => {
             }, 
             usrInfo, req.body)
             
-        if(await registDataQuery(registerDataJson)){
+        const queryResult =  await registDataQuery(registerDataJson)
+        if(queryResult === true){
             try {
                 fs.writeFileSync(
                     registerDataJson['data_path'],
@@ -84,6 +85,10 @@ export const registDataController = async (req, res) => {
                 console.log(error);
                 return res.send({flag : false});
             }
+        }
+        else{
+            console.log("registData error");
+                return res.send({flag : false});
         }
     } catch (error) {
         console.log(error);
