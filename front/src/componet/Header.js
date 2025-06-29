@@ -25,12 +25,15 @@ export default function Header() {
         <Link to="/">Content Trade</Link>
       </h1>
       <nav className="menu">
-        {isLogin ? (
+        {isLogin ?
           <Link to="/logout" className="link">Logout</Link>
-        ) : (
-          <Link to="/login" className="link">Login</Link>
-        )}
-        <Link to="/join" className="link">Join</Link>
+          :
+          <>
+            <Link to="/login" className="link">Login</Link>
+            <Link to="/join" className="link">Join</Link>
+          </>
+        }
+
       </nav>
     </header>
   );
