@@ -38,8 +38,8 @@ class MiMCBase{
      * @returns {BigInt}
      */
     encrypt(msg, ek) {
-        var msg = math.mod(BigInt(msg),this.prime);
-        var ek = math.mod(BigInt(ek), this.prime);
+        msg = math.mod(BigInt(msg),this.prime);
+        ek = math.mod(BigInt(ek), this.prime);
         let round_constant = this.seed;
         let result = this.mimc_round(msg, ek, BigInt(0));
 
@@ -69,7 +69,7 @@ class MiMCBase{
      * @returns {string}                   Hexadecimal string
      */
     hash(...args) {
-        var args = types.hexListToIntList(args);
+        args = types.hexListToIntList(args);
         if(args.length == 1)
             return BigInt(this._hash(args[0], args[0])).toString(16);
         else{

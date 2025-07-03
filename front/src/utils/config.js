@@ -1,4 +1,3 @@
-/* global BigInt */
 
 var Config = {
     EC_TYPE : 'EC_ALT_BN128',
