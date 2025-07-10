@@ -1,14 +1,14 @@
 import { web3, tradeContract,serverAccountAddress } from "./deploy";
 import { ganacheNetwork } from "../config/config"
 
-export async function registData(proof, inputs) {
+export async function contractRegistData(proof, inputs) {
     if (proof.length != 8) {
         console.log('invalid proof length');
-        return { flag: false };
+        return null;
     }
     if (inputs.length != 5) {
         console.log('invalid inputs length');
-        return { flag: false };
+        return null;
     }
     try {
         const receipt = await tradeContract.methods.registContent(proof, inputs).send({
@@ -18,24 +18,24 @@ export async function registData(proof, inputs) {
         });
 
         if (!receipt) {
-            return { flag: false };
+            throw new Error('No receipt returned from contract call');
         }
 
-        return { flag: true, receipt: receipt };
+        return receipt;
     } catch (error) {
         console.log("registData 오류: ", error);
-        return { flag: false };
+        throw error;
     }
 }
 
-export async function genTrade(proof, inputs) {
+export async function contractGenTrade(proof, inputs) {
     if (proof.length != 8) {
         console.log('invalid proof length');
-        return { flag: false };
+        return null;
     }
     if (inputs.length != 17) {
         console.log('invalid inputs length');
-        return { flag: false };
+        return null;
     }
 
     try {
@@ -46,24 +46,24 @@ export async function genTrade(proof, inputs) {
         });
 
         if (!receipt) {
-            return { flag: false };
+            throw new Error('No receipt returned from contract call');
         }
 
-        return { flag: true, receipt: receipt };
+        return receipt;
     } catch (error) {
         console.log("genTrade 오류: ", error);
-        return { flag: false };
+        throw error;
     }
 }
 
-export async function acceptTrade(proof, inputs) {
+export async function contractAcceptTrade(proof, inputs) {
     if (proof.length != 8) {
         console.log('invalid proof length');
-        return { flag: false };
+        return null;
     }
     if (inputs.length != 6) {
         console.log('invalid inputs length');
-        return { flag: false };
+        return null;
     }
 
     try {
@@ -74,12 +74,27 @@ export async function acceptTrade(proof, inputs) {
         });
 
         if (!receipt) {
-            return { flag: false };
+            throw new Error('No receipt returned from contract call');
         }
 
-        return { flag: true, receipt: receipt };
+        return receipt;
     } catch (error) {
         console.log("acceptTrade 오류: ", error);
-        return { flag: false };
+        throw error;
+    }
+}
+
+export async function getTransaction(tx_hash) {
+    try {
+        const transaction = await web3.eth.getTransaction(tx_hash);
+
+        if (!transaction) {
+            return null;
+        }
+
+        return transaction;
+    } catch (error) {
+        console.error("getTransaction 오류:", error);
+        throw error;
     }
 }

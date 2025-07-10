@@ -23,15 +23,15 @@ import httpCli from "../utils/http.js";
 export const orderData = async (h_ct) => {
     try {
         // server key setting
-        const delKeys = await httpCli.get('server/keys');
+        const delKeys = await httpCli.get('server/key/publicKey');
         const pubkey_del = new PublicKey(delKeys.pk_own,delKeys.pk_enc, type = 'del');
         
         // consumer key setting
-        const consKey = await httpCli.get('');
+        const consKey = await httpCli.get('user/key/keyInfo');
         const pubkey_cons = PublicKey.fromUserKey(consKey, type='cons')
 
-        // peer(writer) key setting
-        const info = (await httpCli.get(`data/info/${h_ct}`))
+        // get content info to h_ct
+        const info = await httpCli.get(`content/list/contentInfo/hct/${h_ct}`);
         console.log('peer Info', info, typeof info);
         const pubkey_peer = new PublicKey(info.pk_own,info.pk_enc,type='peer');
 
@@ -67,7 +67,7 @@ export const orderData = async (h_ct) => {
         )
         console.log(receipt, typeof receipt);
 
-        const genTradeRes = await httpCli.post("/",h_ct, receipt.transactionHash);
+        const genTradeRes = await httpCli.post("/content/buy/requestTrade",h_ct, receipt.transactionHash);
         const resJson = genTradeRes.data;
 
         if(resJson.flag === false){

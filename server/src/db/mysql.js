@@ -70,7 +70,7 @@ export async function  getUserCount(){
         return rows[0]['COUNT(*)'];
     } catch (error) {
         console.error('getUserCount error:', error);
-        return null;
+        throw error;
     }
 }
 
@@ -98,11 +98,13 @@ export async function getUserInfo(lgTk) {
         const query = 'SELECT * FROM user WHERE login_tk = ?';
         const [rows] = await promiseConnection.execute(query, [lgTk]);
 
-        // 사용자가 존재하지 않으면 null 반환
-        return rows.length > 0 ? rows[0] : null;
+        if (rows.length === 0) {
+            return null;
+        }
+        return rows[0];
     } catch (error) {
         console.error('getUserInfo error:', error);
-        return null;
+        throw error;
     }
 }
 
@@ -118,7 +120,7 @@ export function userLoginQuery(userInfoJsonInput, callback) {
     connection.query(query, [nickname], (err, rows) => {
         if (err) {
             console.error('DB Error:', err);
-            return callback(false);
+            return callback({flag:false});
         }
 
         if (rows.length === 0) {
@@ -141,6 +143,27 @@ export function userLoginQuery(userInfoJsonInput, callback) {
             eoa     : user.eoa
         });
     });
+}
+
+export async function getUserKeysFromId(id) {
+    const query = `
+        SELECT sk_enc, pk_enc, pk_own 
+        FROM user 
+        WHERE id = ?
+    `;
+
+    try {
+        const [rows] = await promiseConnection.execute(query, [id]);
+
+        if (!rows.length) {
+            return null; 
+        }
+
+        return rows[0];
+    } catch (error) {
+        console.error("getUserKeysFromId 오류:", error);
+        throw error; 
+    }
 }
 
 export async function registDataQuery(registDataJsonInput) {
@@ -168,7 +191,7 @@ export async function registDataQuery(registDataJsonInput) {
         return true;
     } catch (error) {
         console.error('mysql registDataQuery error:', error);
-        return false;
+        throw error;
     }
 }
 
@@ -184,11 +207,10 @@ export async function getDataList(pageIndex) {
         const [data] = await promiseConnection.execute(query, [offset]);
         return data;
     } catch (error) {
-        console.error('Error fetching paginated data:', error);
+        console.error('getDataList:', error);
         return [];
     }
 }
-
 
 export async function getAllDataList() {
     const query = `
@@ -197,11 +219,16 @@ export async function getAllDataList() {
     `;
 
     try {
-        const [data] = await promiseConnection.execute(query);
-        return {flag : true, data: data};
+        const [rows] = await promiseConnection.execute(query);
+
+        if (rows.length === 0) {
+            return null;
+        }
+
+        return rows;
     } catch (error) {
         console.error('Error fetching all data:', error);
-        return {flag :false};
+        throw error;
     }
 }
 
@@ -218,6 +245,48 @@ export async function getMyData(user_id) {
     } catch (error) {
         console.error('Error fetching user data:', error);
         return [];
+    }
+}
+
+export async function getDataInfoFromHct(h_ct) {
+    const query = `
+        SELECT h_k, h_ct, h_data, user_id, title
+        FROM content_list
+        WHERE h_ct = ?
+    `;
+
+    try {
+        const [rows] = await promiseConnection.execute(query, [h_ct]);
+
+        if (!rows.length) {
+            return null;
+        }
+
+        return rows[0];
+    } catch (error) {
+        console.error("getDataInfoFromHct 오류:", error);
+        throw error;
+    }
+}
+
+export async function getDataEncKeyFromHct(h_ct) {
+    const query = `
+        SELECT enc_key, data_path 
+        FROM content_list 
+        WHERE h_ct = ?
+    `;
+
+    try {
+        const [rows] = await promiseConnection.execute(query, [h_ct]);
+
+        if (rows.length === 0) {
+            return null;
+        }
+
+        return rows[0];
+    } catch (error) {
+        console.error("getDataEncKeyFromHct 오류:", error);
+        throw error;
     }
 }
 
