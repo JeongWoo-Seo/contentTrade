@@ -7,7 +7,7 @@
     "test": "test"
   },
   "scripts": {
-    "testrpc": "node ./node_modules/ganache-cli/cli.js --port 7545 --gasLimit 0x3FFFFFFFFFFFF --gasPrice 1 --defaultBalanceEther 100000000000 --networkId 1234 --account_keys_path keys.json",
+    "testrpc": "node ./node_modules/ganache-cli/cli.js --port 7545 --gasLimit 0x3FFFFFFFFFFFF --gasPrice 1 --defaultBalanceEther 100000000000 --networkId 1337 --account_keys_path keys.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

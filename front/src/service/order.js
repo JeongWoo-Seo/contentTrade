@@ -35,7 +35,7 @@ export const orderData = async (h_ct) => {
         console.log('peer Info', info, typeof info);
         const pubkey_peer = new PublicKey(info.pk_own,info.pk_enc,type='peer');
 
-        const symEnc = new Encryption.symmetricKeyEncryption(consKey.skEnc)
+        const symEnc = new Encryption.symmetricKeyEncryption(consKey.sk_enc)
         const ENA = symEnc.Enc(BigInt(100000).toString(16))
         const ENA_ = symEnc.Enc(BigInt(2000).toString(16));
 
@@ -46,7 +46,7 @@ export const orderData = async (h_ct) => {
             pubkey_cons,
             ENA, 
             ENA_,
-            consKey.skEnc,
+            consKey.sk_enc,
             info.h_k
         )
         GenTradeInputs.init()

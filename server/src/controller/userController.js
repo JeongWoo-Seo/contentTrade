@@ -72,9 +72,9 @@ export const getUserKeyInfoController = async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
-        const { pk_own, pk_enc } = usrInfo;
+        const { sk_enc,pk_own, pk_enc } = usrInfo;
 
-        return res.status(200).send({ pk_own, pk_enc });
+        return res.status(200).send({ sk_enc,pk_own, pk_enc });
     } catch (error) {
         console.error("getUserKeyInfoController 오류:", error);
         return res.status(500).json({ message: "서버 오류가 발생했습니다." });

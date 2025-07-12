@@ -101,10 +101,6 @@ export const getAllContentListController = async (req, res) => {
     try {
         const dataList = await getAllDataList();
 
-        if (!dataList) {
-            return res.status(404).json({ message: "콘텐츠가 존재하지 않습니다." });
-        }
-
         return res.status(200).send(dataList);
     } catch (error) {
         console.error("getAllContentListController 오류:", error);

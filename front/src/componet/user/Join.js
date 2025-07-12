@@ -4,6 +4,7 @@ import UserKey from '../../wallet/keyStruct';
 import httpCli from '../../utils/http';
 import mimc from '../../crypto/mimc';
 import types from '../../utils/types';
+import { Helmet } from 'react-helmet-async';
 import '../../styles/Join.css';
 
 export default function Join() {
@@ -67,34 +68,39 @@ export default function Join() {
   };
 
   return (
-    <div className="join-container">
-      <h2>Join</h2>
+    <>
+      <Helmet>
+        회원가입
+      </Helmet>
+      <div className="join-container">
+        <h2>Join</h2>
 
-      <button className="join-button" onClick={onClickSkOwnGen}>🔑 비밀키 생성</button>
+        <button className="join-button" onClick={onClickSkOwnGen}>🔑 비밀키 생성</button>
 
-      {key && (
-        <div className="key-info">
-          <p><strong>SK_own:</strong> 0x{key.skOwn}</p>
-          <p><strong>PK_own:</strong> 0x{key.pkOwn}</p>
-          <p><strong>SK_enc:</strong> 0x{key.skEnc}</p>
-          <p><strong>PK_enc:</strong> 0x{key.pkEnc}</p>
-          <p><strong>Addr:</strong> 0x{key.ena}</p>
+        {key && (
+          <div className="key-info">
+            <p><strong>SK_own:</strong> 0x{key.skOwn}</p>
+            <p><strong>PK_own:</strong> 0x{key.pkOwn}</p>
+            <p><strong>SK_enc:</strong> 0x{key.skEnc}</p>
+            <p><strong>PK_enc:</strong> 0x{key.pkEnc}</p>
+            <p><strong>Addr:</strong> 0x{key.ena}</p>
+          </div>
+        )}
+
+        <div className="nickname-section">
+          <input
+            type="text"
+            value={nickname}
+            onChange={onChangeNickname}
+            placeholder="닉네임 입력"
+          />
+          <button className="check-button" onClick={onClickDeduplication}>중복 확인</button>
         </div>
-      )}
 
-      <div className="nickname-section">
-        <input
-          type="text"
-          value={nickname}
-          onChange={onChangeNickname}
-          placeholder="닉네임 입력"
-        />
-        <button className="check-button" onClick={onClickDeduplication}>중복 확인</button>
+        {deduplication && (
+          <button className="join-button" onClick={onClickJoin}>가입하기</button>
+        )}
       </div>
-
-      {deduplication && (
-        <button className="join-button" onClick={onClickJoin}>가입하기</button>
-      )}
-    </div>
+    </>
   );
 }

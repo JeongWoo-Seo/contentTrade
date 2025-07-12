@@ -34,7 +34,7 @@ contract Trade {
     uint256 private constant ORDER_NUM_INPUTS = 17;
     // AcceptTrade SNARK Proof verify input num
     uint256 private constant ACCEPT_NUM_INPUTS = 6;
-
+    
     constructor(
 //        uint256[] memory _registContent_vk,
 //        uint256[] memory _orderContent_vk,

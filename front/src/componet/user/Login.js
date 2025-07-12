@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import httpCli from "../../utils/http";
 import mimc from "../../crypto/mimc";
 import types from "../../utils/types";
+import { Helmet } from "react-helmet-async";
+import useApiErrorHandler from "../../hooks/useApiErrorHandler";
 import "../../styles/Login.css";
 
 export default function Login() {
@@ -11,6 +13,7 @@ export default function Login() {
   const keyRef = useRef();
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { errorMessage, handleError, clearError } = useApiErrorHandler();
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -44,29 +47,35 @@ export default function Login() {
       httpCli.defaults.headers.common["access-token"] = JSON.stringify(data);
       navigate("/");
     } catch (err) {
+      handleError(err);
       console.error("Login error:", err);
-      alert("서버 오류. 나중에 다시 시도해주세요.");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="login-container">
-      <h2>Login</h2>
-      <form onSubmit={onSubmit} className="login-form">
-        <div className="input-group">
-          <label htmlFor="nickname">Nickname</label>
-          <input id="nickname" type="text" ref={nameRef} required />
-        </div>
-        <div className="input-group">
-          <label htmlFor="secret">Secret Key</label>
-          <input id="secret" type="password" ref={keyRef} required />
-        </div>
-        <button type="submit" disabled={isLoading} className="login-button">
-          {isLoading ? "Logging in..." : "Login"}
-        </button>
-      </form>
-    </div>
+    <>
+      <Helmet>
+        로그인
+      </Helmet>
+
+      <div className="login-container">
+        <h2>Login</h2>
+        <form onSubmit={onSubmit} className="login-form">
+          <div className="input-group">
+            <label htmlFor="nickname">Nickname</label>
+            <input id="nickname" type="text" ref={nameRef} required />
+          </div>
+          <div className="input-group">
+            <label htmlFor="secret">Secret Key</label>
+            <input id="secret" type="password" ref={keyRef} required />
+          </div>
+          <button type="submit" disabled={isLoading} className="login-button">
+            {isLoading ? "Logging in..." : "Login"}
+          </button>
+        </form>
+      </div>
+    </>
   );
 }

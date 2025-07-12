@@ -15,7 +15,7 @@ export const accountAddressList = [];
 
 //ganache
 export const ganacheNetwork ={
-    networkId       : '1234',
+    networkId       : '1337',
     testProvider    : 'http://127.0.0.1:7545', // ganache link
     gasPrice        : 1,
     gas             : 3000000
