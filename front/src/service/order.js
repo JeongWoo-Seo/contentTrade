@@ -1,13 +1,11 @@
+/* global BigInt */
 import _ from 'lodash'
 
-import DBInstance from "../../db";
-
-import PublicKey from "../libsanrk/struct/pk.js";
+import PublicKey from "../libsnark/struct/pk.js";
 import UserKey from "../wallet/keyStruct.js";
 import Encryption from '../crypto/encryption.js';
 import SnarkInputs from '../libsnark/struct/snarkInput.js';
-import Libsnark from '../libsnark/libsnark.js';
-import { getTradeContract } from '../web3';
+//import Libsnark from '../libsnark/libsnark.js';
 import httpCli from "../utils/http.js";
 
 // let snarkClass = new Libsnark();
@@ -20,20 +18,20 @@ import httpCli from "../utils/http.js";
   
 // }
 
-export const orderData = async (h_ct) => {
+export const orderContent = async (h_ct,tradeContract) => {
     try {
         // server key setting
         const delKeys = await httpCli.get('server/key/publicKey');
-        const pubkey_del = new PublicKey(delKeys.pk_own,delKeys.pk_enc, type = 'del');
+        const pubkey_del = new PublicKey(delKeys.pk_own,delKeys.pk_enc,'del');
         
         // consumer key setting
         const consKey = await httpCli.get('user/key/keyInfo');
-        const pubkey_cons = PublicKey.fromUserKey(consKey, type='cons')
+        const pubkey_cons = PublicKey.fromUserKey(consKey,'cons')
 
         // get content info to h_ct
         const info = await httpCli.get(`content/list/contentInfo/hct/${h_ct}`);
         console.log('peer Info', info, typeof info);
-        const pubkey_peer = new PublicKey(info.pk_own,info.pk_enc,type='peer');
+        const pubkey_peer = new PublicKey(info.pk_own,info.pk_enc,'peer');
 
         const symEnc = new Encryption.symmetricKeyEncryption(consKey.sk_enc)
         const ENA = symEnc.Enc(BigInt(100000).toString(16))
@@ -59,40 +57,24 @@ export const orderData = async (h_ct) => {
 
         const contractInputs = GenTradeInputs.toContractInput();
         
-        const receipt = await getTradeContract().genTrade(
+        const receipt = await tradeContract.genTrade(
             contractProof,
-            contractInputs,
-            consKey.eoa,//account
-            consKey.eoa_sk//account privKey
+            contractInputs
         )
         console.log(receipt, typeof receipt);
 
-        const genTradeRes = await httpCli.post("/content/buy/requestTrade",h_ct, receipt.transactionHash);
+        const reqBody = {h_ct, tx_hash : receipt.transactionHash};
+        const genTradeRes = await httpCli.post("/content/buy/requestTrade",reqBody);
         const resJson = genTradeRes.data;
 
-        if(resJson.flag === false){
-            return [false, undefined, undefined, undefined]
+        if(!resJson){
+            return false;
         }
 
-        console.log(
-            decodeURIComponent(resJson['data'])
-        )
-        let { title, owner, key, data} = resJson
-        data= decodeURIComponent(data)
-
-        await DBInstance.dataDB.insertData(
-            data, 
-            owner,
-            title,
-            key,
-            h_ct,
-            idx
-        );
-
-        return [true, title, owner, data]
+        return true;
     } catch (error) {
-        console.log(error)
-        return [false, undefined, undefined, undefined]
+        console.log("orderContent",error);
+        throw error;
     }
     
 }

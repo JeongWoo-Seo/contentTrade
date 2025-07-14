@@ -28,7 +28,7 @@ export default class PublicKey{
     static fromUserKey(userKey, type){
         if(!(type === 'del' || type === 'peer' || type === 'cons')){return undefined;}
 
-        return new PublicKey(userKey.pk.pkOwn, userKey.pk.pkEnc, type)
+        return new PublicKey(userKey.pk_own, userKey.pk_enc, type)
     }
 
     toJson() {

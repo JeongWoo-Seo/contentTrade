@@ -1,3 +1,4 @@
+/* global BigInt */
 import _ from 'lodash'
 
 import { hexStrToDec } from '../../utils/types'

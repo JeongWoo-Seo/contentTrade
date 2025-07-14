@@ -5,6 +5,7 @@ import { createContractInstance } from "../../contract/contract.js";
 import { GANACHE_URL } from "../../contract/config.js";
 import { Helmet } from "react-helmet-async";
 import useApiErrorHandler from "../../hooks/useApiErrorHandler";
+import { orderContent } from "../../service/order.js";
 
 export default function DataList() {
     const [contentData, setContentData] = useState([]);
@@ -19,6 +20,7 @@ export default function DataList() {
             return;
         }
         try {
+            await orderContent(item.h_ct,tradeContract);
             
         } catch (err) {
             handleError(err);
