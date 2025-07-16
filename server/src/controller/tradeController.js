@@ -3,7 +3,7 @@ import fs from 'fs'
 import mimc from '../crypto/mimc';
 import Config from '../utils/config';
 import Encryption from '../crypto/encryption';
-import { getDataEncKeyFromHct, getDataInfoFromHct, getUserKeysFromId } from "../db/mysql";
+import { getUserInfo, getDataInfoFromHct, getUserKeysFromId,savePurchaseHistory } from "../db/mysql";
 import { contractAcceptTrade, getTransaction } from "../contract/contract";
 import SnarkInput from '../libsnark/struct/snarkInput';
 import { acceptTradeInputJsonToContractFormat, getContractProof } from '../contract/utils';
@@ -18,6 +18,12 @@ const pubEnc = new Encryption.publicKeyEncryption();
 
 export const acceptTradeController = async (req, res) => {
     try {
+        const jwtHeader = JSON.parse(req.headers['access-token'])
+        const loginTk = jwtHeader.loginTk;
+        if (!loginTk) {
+            return res.status(401).json({ message: "User not logged in" });
+        }
+
         const { h_ct, tx_hash } = req.params;
 
         // 1. DB에서 콘텐츠 및 유저 정보 조회
@@ -26,9 +32,9 @@ export const acceptTradeController = async (req, res) => {
             return res.status(404).send({ message: "해당 콘텐츠의 정보가 존재하지 않습니다." });
         }
 
-        const usrInfo = await getUserKeysFromId(dataInfo.user_id);
-        if (!usrInfo) {
-            return res.status(404).json({ message: "해당 콘텐츠의 정보가 존재하지 않습니다." });
+        const authorInfo = await getUserKeysFromId(dataInfo.user_id);
+        if (!authorInfo) {
+            return res.status(404).json({ message: "해당 콘텐츠의 작성자 정보가 존재하지 않습니다." });
         }
 
         // 2. 트랜잭션 정보 조회
@@ -42,29 +48,18 @@ export const acceptTradeController = async (req, res) => {
             console.log(i, inputData.slice(i * 64, (i + 1) * 64));
         }
 
-        const dec_ct = decrypCT(inputData, usrInfo.sk_enc);
+        const dec_ct = decrypCT(inputData, authorInfo.sk_enc);
         const serverPkOwn = process.env.PK_OWN;
-        const isValid = checkCM(data, decrypted, usrInfo.pk_own, serverPkOwn);
+        const isValid = checkCM(inputData, dec_ct, authorInfo.pk_own, serverPkOwn);
         if (!isValid) {
             return res.status(400).json({ message: "커밋먼트 오류" });
         }
 
-        const keyInfo = await getDataEncKeyFromHct(h_ct);
-        if (!keyInfo) {
-            return res.status(404).json({ message: "해당 콘텐츠의 정보가 존재하지 않습니다.",});
-        }
-
-        const { enc_key, data_path } = keyInfo;
-        const symEnc = new Encryption.symmetricKeyEncryption(enc_key)
-        const CT = _.get(JSON.parse(fs.readFileSync(data_path, 'utf-8')), 'ct_data');
-        const dec = symEnc.DecData(new Encryption.sCTdata(CT.r, CT.ct));
-        const dataString = hexStrToString(dec)
-
         const acceptTradeReceipt = acceptTrade(
             serverPkOwn,
-            usrInfo.pk_own,
+            authorInfo.pk_own,
             dec_ct[0],
-            enc_key,
+            dataInfo.enc_key,
             dec_ct[2],
             dec_ct[3],
             dec_ct[4]
@@ -74,13 +69,10 @@ export const acceptTradeController = async (req, res) => {
             return res.status(500).json({ message: "Trade 수락 실패" });
         }
 
-        res.status(200).send({
-            owner: usrInfo.user_id,
-            title: dataInfo.title,
-            key: enc_key,
-            h_ct: h_ct,
-            data: dataString
-        });
+        const usrInfo = await getUserInfo(loginTk);
+        await savePurchaseHistory(usrInfo.user_id,h_ct);
+
+        res.status(200).send({success: true});
     } catch (error) {
         console.error("acceptTradeController 오류:", error);
         res.status(500).json({message: "서버 오류가 발생했습니다."});
@@ -148,16 +140,6 @@ const sliceData = (data, idx) => {
     return data.slice(idx * 64, (idx + 1) * 64)
 }
 
-const hexStrToString = (strArr) => {
-    let ret = ''
-    for (let i = 0; i < Number(Config.dataBlockNum); i++) {
-        if (strArr[i] === '0') continue;
-        console.log(strArr[i]);
-        ret += Buffer.from(strArr[i].padStart(64, '0'), 'hex')
-    }
-    return ret
-}
-
 const acceptTrade = async (
     pk_own_del,
     pk_own_peer,
@@ -199,3 +181,4 @@ const acceptTrade = async (
         throw error;
     }
 };
+

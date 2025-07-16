@@ -250,7 +250,7 @@ export async function getMyData(user_id) {
 
 export async function getDataInfoFromHct(h_ct) {
     const query = `
-        SELECT h_k, h_ct, h_data, user_id, title
+        SELECT h_k, h_ct, h_data, user_id, title,enc_key
         FROM content_list
         WHERE h_ct = ?
     `;
@@ -290,6 +290,66 @@ export async function getDataEncKeyFromHct(h_ct) {
     }
 }
 
+export async function savePurchaseHistory (buyer_id,h_ct) {
+    const query = `
+        INSERT INTO buy_history 
+        (user_id, h_k)
+        VALUES (?, ?)
+    `;
+
+    const values = [buyer_id, h_ct];
+    try{
+        connection.query(query, values);
+        return true;
+    } catch(error){
+        console.error("savePurchaseHistory 오류:", error);
+        throw error;
+    }
+}
+
+export async function getPurchaseHistory(userId, h_ct = null) { // h_ct를 선택적 인자로 변경
+    // 1. 입력 유효성 검사
+    if (!userId) {
+        throw new Error("사용자 ID가 제공되지 않았습니다.");
+    }
+
+    let query = `
+        SELECT 
+            user_id,        -- 구매한 사용자 ID
+            h_k,            -- 구매한 콘텐츠의 해시 또는 식별자 (h_ct와 매핑)
+            purchase_date,  -- 구매 일시 (테이블에 해당 컬럼이 있다고 가정)
+            amount          -- 구매 금액 (테이블에 해당 컬럼이 있다고 가정)
+            -- 필요한 다른 컬럼들도 추가할 수 있습니다.
+        FROM 
+            buy_history 
+        WHERE 
+            user_id = ?
+    `;
+    const values = [userId];
+
+    // 2. h_ct 값이 제공되면 쿼리에 조건 추가
+    if (h_ct) {
+        query += ` AND h_k = ?`; // h_k 컬럼이 콘텐츠 해시를 저장한다고 가정
+        values.push(h_ct);
+    }
+
+    try {
+        const [rows] = await connection.query(query, values);
+
+        if (h_ct) {
+            console.log(`사용자 ${userId}의 콘텐츠 ${h_ct} 구매 이력 조회 성공. ${rows.length}건.`);
+        } else {
+            console.log(`사용자 ${userId}의 전체 구매 이력 조회 성공. 총 ${rows.length}건.`);
+        }
+        
+        return rows;
+
+    } catch (error) {
+        console.error('getPurchaseHistory 오류:', error);
+
+        throw error;
+    }
+}
 
 const mySqlHandler = {
     nicknameDuplicateCheckQuery,

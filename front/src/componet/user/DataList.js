@@ -20,7 +20,11 @@ export default function DataList() {
             return;
         }
         try {
-            await orderContent(item.h_ct,tradeContract);
+            const result = await orderContent(item.h_ct,tradeContract);
+            if(!result){
+                console.error("content 구매 실패");
+                alert("content 구매 실패");
+            }
             
         } catch (err) {
             handleError(err);
