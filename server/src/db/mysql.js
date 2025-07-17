@@ -35,7 +35,7 @@ export function nicknameDuplicateCheckQuery(nickname, callback) {
 
 export function userJoinQuery(userInfoJson, callback) {
     const {
-        loginTk,
+        login_tk,
         nickname,
         skEnc,
         pkOwn,
@@ -49,7 +49,7 @@ export function userJoinQuery(userInfoJson, callback) {
         VALUES (?, ?, ?, ?, ?, ?, ?);
     `;
 
-    const values = [loginTk, nickname, skEnc, pkOwn, pkEnc, addr, eoa];
+    const values = [login_tk, nickname, skEnc, pkOwn, pkEnc, addr, eoa];
 
     connection.query(query, values, (err, result) => {
         if (err) {
@@ -109,10 +109,10 @@ export async function getUserInfo(lgTk) {
 }
 
 export function userLoginQuery(userInfoJsonInput, callback) {
-    const { nickname, login_tk } = userInfoJsonInput;
+    const { nickname } = userInfoJsonInput;
 
     const query = `
-        SELECT login_tk, nickname, sk_enc, eoa 
+        SELECT user_id,login_tk, nickname, eoa 
         FROM user 
         WHERE nickname = ?
     `;
@@ -130,16 +130,11 @@ export function userLoginQuery(userInfoJsonInput, callback) {
 
         const user = rows[0];
 
-        if (user.login_tk !== login_tk) {
-            console.log('login_tk is incorrect');
-            return callback({ flag: false });
-        }
-
         callback({
             flag: true,
+            user_id : user.user_id,
             nickname: user.nickname,
             login_tk: user.login_tk,
-            sk_enc  : user.sk_enc,
             eoa     : user.eoa
         });
     });

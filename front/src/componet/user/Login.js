@@ -30,7 +30,7 @@ export default function Login() {
       const res = await httpCli.post("/user/login", loginData);
       const data = res.data;
 
-      if (!data.flag) {
+      if (!data.success) {
         alert("로그인 실패. 다시 시도해주세요.");
         navigate("/login");
         return;
@@ -38,9 +38,9 @@ export default function Login() {
 
       sessionStorage.setItem("isLogin", "true");
       sessionStorage.setItem("nickname", data.nickname);
-      sessionStorage.setItem("loginTk", loginTk);
       sessionStorage.setItem("jwtToken", data.token);
       sessionStorage.setItem("accountAddress", data.eoa);
+      sessionStorage.setItem("user_id", data.user_id);
 
       window.dispatchEvent(new Event("loginStatusChanged")); //header Login 표시 변경
 

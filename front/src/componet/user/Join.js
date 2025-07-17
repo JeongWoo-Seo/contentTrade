@@ -58,7 +58,7 @@ export default function Join() {
     };
 
     const res = await httpCli.post("/user/join/join/", userData);
-    if (!res.data.flag) {
+    if (!res.data.success) {
       alert("가입 실패: 이미 가입된 계정이거나 잘못된 주소입니다.");
       return;
     }
