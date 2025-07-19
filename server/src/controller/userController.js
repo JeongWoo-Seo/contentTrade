@@ -68,6 +68,7 @@ export const loginController = async (req, res) => {
             if (!isPasswordValid) {
                 return res.status(401).json({success: false,message: "로그인 실패: 비밀번호가 올바르지 않습니다." });
             }
+
             const token = jwt.sign({ user_id: loginInfo.user_id, nickname : loginInfo.nickname }, JWT_SECRET, { expiresIn: '1h' });
 
             return res.status(200).json({
@@ -94,13 +95,8 @@ export const loginController = async (req, res) => {
 
 export const getUserKeyInfoController = async (req, res) => {
     try {
-        const jwtHeader = JSON.parse(req.headers['access-token'])
-        const loginTk = jwtHeader.loginTk;
-        if (!loginTk) {
-            return res.status(401).json({ message: "User not logged in" });
-        }
-
-        const usrInfo = await mySqlHandler.getUserInfo(loginTk);
+        const user = req.user;
+        const usrInfo = await mySqlHandler.getUserInfo(user.user_id);
 
         if (!usrInfo) {
             return res.status(404).json({ message: "User not found" });

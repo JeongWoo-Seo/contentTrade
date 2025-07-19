@@ -5,11 +5,10 @@ dotenv.config();
 const JWT_SECRET = process.env.JWT_SECRET;
 
 export const authenticateToken = (req,res,next) =>{
-    const jwtHeader = req.headers['access-token'];
-    const token = jwtHeader.jwtToken;
-
+    const token = req.headers['access-token'];
+    
     if(!token){
-        res.status(401).json({message : "인증 토큰이 없습니다"});
+        return res.status(401).json({message : "인증 토큰이 없습니다"});
     }
 
     jwt.verify(token,JWT_SECRET,(err,user) =>{

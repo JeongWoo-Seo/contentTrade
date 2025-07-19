@@ -18,13 +18,7 @@ const pubEnc = new Encryption.publicKeyEncryption();
 
 export const acceptTradeController = async (req, res) => {
     try {
-        const jwtHeader = JSON.parse(req.headers['access-token'])
-        const loginTk = jwtHeader.loginTk;
-        if (!loginTk) {
-            return res.status(401).json({ message: "User not logged in" });
-        }
-
-        const { h_ct, tx_hash } = req.params;
+        const { h_ct, tx_hash } = req.body;
 
         // 1. DB에서 콘텐츠 및 유저 정보 조회
         const dataInfo = await getDataInfoFromHct(h_ct);
@@ -42,11 +36,11 @@ export const acceptTradeController = async (req, res) => {
         if (!receipt) {
             return res.status(404).json({ message: 'Transaction not found' });
         }
-
-        const inputData = _.get(receipt, 'input', '').slice(10);
-        for (let i = 0; i < 27; i++) {
-            console.log(i, inputData.slice(i * 64, (i + 1) * 64));
-        }
+        
+        const inputData = receipt.input.slice(10);
+        // for (let i = 0; i < 27; i++) {
+        //     console.log(i, inputData.slice(i * 64, (i + 1) * 64));
+        // }
 
         const dec_ct = decrypCT(inputData, authorInfo.sk_enc);
         const serverPkOwn = process.env.PK_OWN;
@@ -69,9 +63,15 @@ export const acceptTradeController = async (req, res) => {
             return res.status(500).json({ message: "Trade 수락 실패" });
         }
 
-        const usrInfo = await getUserInfo(loginTk);
-        await savePurchaseHistory(usrInfo.user_id,h_ct);
+        const user = req.user;
+        
+        const success = await savePurchaseHistory(user.user_id, h_ct);
 
+        if (!success) {
+            return res.status(500).send({ success: false, message: "구매 기록 저장에 실패했습니다." });
+        }
+
+        console.log(user.user_id,h_ct,"구매");
         res.status(200).send({success: true});
     } catch (error) {
         console.error("acceptTradeController 오류:", error);
@@ -128,9 +128,6 @@ const checkCM = (data, decCT, pk_own_peer, pk_own_del) => {
         h_k,
         pk_enc_cons
     )
-
-    console.log(cm_own_calc, cm_own)
-    console.log(cm_del_calc, cm_del)
 
     return cm_own_calc.padStart(64, '0') === cm_own.padStart(64, '0') && cm_del_calc.padStart(64, '0') === cm_del.padStart(64, '0')
 }

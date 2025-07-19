@@ -22,13 +22,8 @@ const pubEnc = new Encryption.publicKeyEncryption();
 
 export const registDataController = async (req, res) => {
     try {
-        const jwtHeader = JSON.parse(req.headers['access-token'])
-        const loginTk = jwtHeader.loginTk;
-        if (!loginTk) {
-            return res.status(401).json({ message: "User not logged in" });
-        }
-
-        const usrInfo = await getUserInfo(loginTk);
+        const user = req.user;
+        const usrInfo = await getUserInfo(user.user_id);
 
         if (!usrInfo) {
             return res.status(404).json({ message: "User not found" });
@@ -144,12 +139,6 @@ export const getContentDatafromHctController = async (req, res) => {
 
 export const getContentDataController = async (req, res) => {
     try {
-        const jwtHeader = JSON.parse(req.headers['access-token'])
-        const loginTk = jwtHeader.loginTk;
-        if (!loginTk) {
-            return res.status(401).json({ message: "User not logged in" });
-        }
-
         const h_ct = req.params.h_ct;
         if (!h_ct) {
             console.warn("Content hash (h_ct) missing from request parameters.");
@@ -157,11 +146,12 @@ export const getContentDataController = async (req, res) => {
         }
 
         //  구매 이력 확인 (사용자가 콘텐츠를 구매했는지 확인)
-        const purchaseInfo = await getPurchaseHistory(loginTk, h_ct);
+        const user = req.user;
+        const purchaseInfo = await getPurchaseHistory(user.user_id, h_ct);
 
         // getPurchaseHistory가 빈 배열을 반환하면 구매 이력이 없는 것
         if (!purchaseInfo || purchaseInfo.length === 0) {
-            console.warn(`User ${loginTk} has not purchased content ${h_ct}.`);
+            console.warn(`User has not purchased content ${h_ct}.`);
             return res.status(403).json({ message: "해당 콘텐츠를 구매하지 않았습니다." });
         }
 

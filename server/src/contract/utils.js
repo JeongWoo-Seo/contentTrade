@@ -101,10 +101,10 @@ export function registDataInputJsonToContractFormat(inputJson) {
 
 export function acceptTradeInputJsonToContractFormat(inputJson) {
     let tmp = ['1']
-    tmp.push(hexToDec(_.get(inputJson, 'cm_del')))
-    tmp.push(hexToDec(_.get(inputJson, 'cm_own')))
+    tmp.push(hexToDec(inputJson.cm_del))
+    tmp.push(hexToDec(inputJson.cm_own))
 
-    const ecryptedDataEncKey = _.get(inputJson, 'ecryptedDataEncKey')
+    const ecryptedDataEncKey = inputJson.ecryptedDataEncKey;
     for(let i=0; i<3; i++)
         tmp.push(hexToDec(ecryptedDataEncKey[i]))
     

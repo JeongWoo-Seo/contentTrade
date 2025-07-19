@@ -30,14 +30,6 @@ export default class CoinCommitment {
         //     h_k,'\n',
         // )
         const mimc7 = new mimc.MiMC7();
-
-        console.log(
-            "\n\npk_own_peer : ",  pk_own_peer, '\n',
-            'r_cm : ' ,         r_cm ,'\n',
-            'fee_own : ' ,      fee_own ,'\n',
-            'h_k : ' ,          h_k ,'\n',
-            'pk_enc_cons : ' ,  pk_enc_cons ,'\n',
-        )  
         
         // console.log(
         //     'mimc7 cm_own Test : \n',

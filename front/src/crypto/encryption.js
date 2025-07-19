@@ -20,7 +20,8 @@ class sCT {
     }
 
     toJson() { return JSON.stringify(this); }
-
+    toList() { return [ this.r, this.ct ]; }
+    
     static fromJson(sCTJson) {
         let dataJson = JSON.parse(sCTJson);
         return new sCT(

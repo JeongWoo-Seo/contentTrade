@@ -44,7 +44,7 @@ export default function Login() {
 
       window.dispatchEvent(new Event("loginStatusChanged")); //header Login 표시 변경
 
-      httpCli.defaults.headers.common["access-token"] = JSON.stringify(data);
+      httpCli.defaults.headers.common["access-token"] = data.token;
       navigate("/");
     } catch (err) {
       handleError(err);

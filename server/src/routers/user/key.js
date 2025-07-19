@@ -4,6 +4,6 @@ import { authenticateToken } from '../../middleware/authMiddleware';
 
 const router = express.Router();
 
-router.get('/keyInfo',authenticateToken/getUserKeyInfoController);
+router.get('/keyInfo',authenticateToken,getUserKeyInfoController);
 
 export default router;

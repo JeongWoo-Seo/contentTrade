@@ -93,10 +93,10 @@ export function getUserInfoFromId(id, callback) {
     });
 }
 
-export async function getUserInfo(lgTk) {
+export async function getUserInfo(user_id) {
     try {
-        const query = 'SELECT * FROM user WHERE login_tk = ?';
-        const [rows] = await promiseConnection.execute(query, [lgTk]);
+        const query = 'SELECT * FROM user WHERE id = ?';
+        const [rows] = await promiseConnection.execute(query, [user_id]);
 
         if (rows.length === 0) {
             return null;
@@ -108,36 +108,36 @@ export async function getUserInfo(lgTk) {
     }
 }
 
-export function userLoginQuery(userInfoJsonInput, callback) {
+export async function userLoginQuery(userInfoJsonInput) {
     const { nickname } = userInfoJsonInput;
 
     const query = `
-        SELECT user_id,login_tk, nickname, eoa 
+        SELECT id, login_tk, nickname, eoa 
         FROM user 
         WHERE nickname = ?
     `;
 
-    connection.query(query, [nickname], (err, rows) => {
-        if (err) {
-            console.error('DB Error:', err);
-            return callback({flag:false});
-        }
+    try {
+        const [rows] = await promiseConnection.query(query, [nickname]);
 
         if (rows.length === 0) {
             console.log('User does not exist');
-            return callback({ flag: false });
+            return { flag: false };
         }
 
         const user = rows[0];
 
-        callback({
+        return {
             flag: true,
-            user_id : user.user_id,
+            user_id: user.id,
             nickname: user.nickname,
             login_tk: user.login_tk,
-            eoa     : user.eoa
-        });
-    });
+            eoa: user.eoa
+        };
+    } catch (err) {
+        console.error('userLoginQuery Error:', err);
+        throw err;
+    }
 }
 
 export async function getUserKeysFromId(id) {
@@ -288,7 +288,7 @@ export async function getDataEncKeyFromHct(h_ct) {
 export async function savePurchaseHistory (buyer_id,h_ct) {
     const query = `
         INSERT INTO buy_history 
-        (user_id, h_k)
+        (user_id, h_ct)
         VALUES (?, ?)
     `;
 
@@ -302,29 +302,22 @@ export async function savePurchaseHistory (buyer_id,h_ct) {
     }
 }
 
-export async function getPurchaseHistory(userId, h_ct = null) { // h_ct를 선택적 인자로 변경
+export async function getPurchaseHistory(userId, h_ct = null) {
     // 1. 입력 유효성 검사
     if (!userId) {
         throw new Error("사용자 ID가 제공되지 않았습니다.");
     }
 
     let query = `
-        SELECT 
-            user_id,        -- 구매한 사용자 ID
-            h_k,            -- 구매한 콘텐츠의 해시 또는 식별자 (h_ct와 매핑)
-            purchase_date,  -- 구매 일시 (테이블에 해당 컬럼이 있다고 가정)
-            amount          -- 구매 금액 (테이블에 해당 컬럼이 있다고 가정)
-            -- 필요한 다른 컬럼들도 추가할 수 있습니다.
-        FROM 
-            buy_history 
-        WHERE 
-            user_id = ?
+        SELECT user_id, h_ct
+        FROM buy_history 
+        WHERE user_id = ?
     `;
     const values = [userId];
 
     // 2. h_ct 값이 제공되면 쿼리에 조건 추가
     if (h_ct) {
-        query += ` AND h_k = ?`; // h_k 컬럼이 콘텐츠 해시를 저장한다고 가정
+        query += ` AND h_ct = ?`; // h_k 컬럼이 콘텐츠 해시를 저장한다고 가정
         values.push(h_ct);
     }
 

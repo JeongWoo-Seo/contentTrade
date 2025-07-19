@@ -21,23 +21,25 @@ import httpCli from "../utils/http.js";
 export const orderContent = async (h_ct,tradeContract) => {
     try {
         // server key setting
-        const delKeys = await httpCli.get('server/key/publicKey');
-        const pubkey_del = new PublicKey(delKeys.pk_own,delKeys.pk_enc,'del');
+        const delKeyInfo = await httpCli.get('server/key/publicKey');
+        const delKey = delKeyInfo.data;
+        const pubkey_del = new PublicKey(delKey.pk_own,delKey.pk_enc,'del');
         
         // consumer key setting
-        const consKey = await httpCli.get('user/key/keyInfo');
+        const consKeyInfo = await httpCli.get('user/key/keyInfo');
+        const consKey = consKeyInfo.data;
         const pubkey_cons = PublicKey.fromUserKey(consKey,'cons')
 
         // get content info to h_ct
-        const info = await httpCli.get(`content/list/contentInfo/hct/${h_ct}`);
-        console.log('peer Info', info, typeof info);
-        const pubkey_peer = new PublicKey(info.pk_own,info.pk_enc,'peer');
-
-        const symEnc = new Encryption.symmetricKeyEncryption(consKey.sk_enc)
-        const ENA = symEnc.Enc(BigInt(100000).toString(16))
+        const contentInfo = await httpCli.get(`content/list/contentInfo/hct/${h_ct}`);
+        const content = contentInfo.data;
+        const pubkey_peer = new PublicKey(content.pk_own,content.pk_enc,'peer');
+        
+        const symEnc = new Encryption.symmetricKeyEncryption(consKey.sk_enc);
+        const ENA = symEnc.Enc(BigInt(100000).toString(16));
         const ENA_ = symEnc.Enc(BigInt(2000).toString(16));
 
-        console.log('start GenTrade ', info.h_k)
+        console.log('start GenTrade ', content.h_k)
         let GenTradeInputs = new SnarkInputs(
             pubkey_peer,
             pubkey_del,
@@ -45,7 +47,7 @@ export const orderContent = async (h_ct,tradeContract) => {
             ENA, 
             ENA_,
             consKey.sk_enc,
-            info.h_k
+            content.h_k
         )
         GenTradeInputs.init()
         console.log(GenTradeInputs.toJson())
@@ -63,7 +65,7 @@ export const orderContent = async (h_ct,tradeContract) => {
         )
         console.log(receipt, typeof receipt);
 
-        const reqBody = {h_ct, tx_hash : receipt.transactionHash};
+        const reqBody = {h_ct, tx_hash : receipt.hash};
         const genTradeRes = await httpCli.post("/content/buy/requestTrade",reqBody);
         const resJson = genTradeRes.data;
 
