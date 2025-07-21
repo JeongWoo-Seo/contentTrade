@@ -167,8 +167,7 @@ export const getDecContentDataController = async (req, res) => {
         const symEnc = new Encryption.symmetricKeyEncryption(enc_key)
         const CT = _.get(JSON.parse(fs.readFileSync(data_path, 'utf-8')), 'ct_data');
         const dec = symEnc.DecData(new Encryption.sCTdata(CT.r, CT.ct));
-        const dataString = hexStrToString(dec);
-        console.log(dec);
+        const dataString = hexStrArrayToUtf8String(dec);
         res.status(200).send({title: title,data:dataString});
     } catch (error) {
         console.error("getDecContentDataController:", error);
@@ -187,24 +186,32 @@ export const getPurchaseList = async (req,res) =>{
         res.status(500).json({ message: " 서버 오류가 발생했습니다." });
     }
 }
-
-const hexStrToString = (strArr) => {
+  
+  // 변환 함수
+  function hexStrArrayToUtf8String(hexArray) {
     const buffers = [];
-
-    for (let hex of strArr) {
-        // 1. null이거나 '0' 등 무의미한 값은 무시
-        if (!hex || hex === '0') continue;
-
-        // 2. 너무 짧은 값도 무시하거나 확인
-        if (hex.length < 2) continue;
-
-        try {
-            buffers.push(Buffer.from(hex, 'hex'));
-        } catch (e) {
-            console.warn('⚠️ hex 변환 실패:', hex);
-        }
+  
+    for (let hex of hexArray) {
+      if (!hex || hex === '0') continue;
+  
+      // 불필요한 패딩 없이 hex가 홀수 길이면 앞에 0 붙이기 (필요시만)
+      if (hex.length % 2 !== 0) {
+        hex = '0' + hex;
+      }
+  
+      try {
+        buffers.push(Buffer.from(hex, 'hex'));
+      } catch (err) {
+        console.error(`Invalid hex: ${hex}`);
+      }
     }
-
-    // 3. 전체 concat 후 utf8로 디코딩
-    return Buffer.concat(buffers).toString('utf8').replace(/\x00+$/, '').trim();
-};
+  
+    const fullBuffer = Buffer.concat(buffers);
+  
+    // 한글 깨짐 방지: null 문자(\x00) 제거 후 UTF-8 디코딩
+    const utf8Str = fullBuffer.toString('utf8').replace(/\x00+$/, '').trim();
+  
+    return utf8Str;
+  }
+  
+  

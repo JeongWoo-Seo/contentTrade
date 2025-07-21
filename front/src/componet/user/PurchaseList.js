@@ -40,8 +40,10 @@ export default function PurchaseList() {
             <Helmet>
                 <title>구매 목록</title>
             </Helmet>
+
             <div className="purchase-list-container">
                 <h2>📦 Purchase List</h2>
+
                 <table className="purchase-table">
                     <thead>
                         <tr>
@@ -51,13 +53,18 @@ export default function PurchaseList() {
                             <th></th>
                         </tr>
                     </thead>
+
                     <tbody>
                         {purchaseList.map((item, index) => (
-                            <tr key={index}>
+                            <tr key={item.h_ct || index}>
                                 <td>{index + 1}</td>
                                 <td>{item.title}</td>
                                 <td>{item.descript}</td>
-                                <td><Link to={`/purchase_list/${item.h_ct}`}>읽기</Link></td>
+                                <td>
+                                    <Link to={`/purchase_list/${item.h_ct}`} className="read-button">
+                                        읽기
+                                    </Link>
+                                </td>
                             </tr>
                         ))}
                     </tbody>

@@ -35,3 +35,23 @@
 .purchase-table tr:nth-child(even) {
     background-color: #fafafa;
 }
+
+.read-button {
+    display: inline-block;
+    padding: 6px 12px;
+    background-color: #4CAF50;  /* 녹색 */
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s ease-in-out;
+  }
+  
+  .read-button:hover {
+    background-color: #45a049;
+  }
+  
+  .read-button:active {
+    background-color: #3e8e41;
+  }
