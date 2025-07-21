@@ -85,7 +85,7 @@ export default function DataList() {
     return (
         <>
             <Helmet>
-                content 목록
+                <title>content 목록</title>
             </Helmet>
             <div className="content-list">
                 <h2>Content List</h2>

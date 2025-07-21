@@ -13,7 +13,9 @@ export default function Logout() {
 
   return (
     <>
-      <Helmet>로그아웃</Helmet>
+      <Helmet>
+        <title>로그아웃</title>
+      </Helmet>
       <div className="logout-container">
         <h2 className="logout-title">Logout</h2>
         <p className="logout-nickname">

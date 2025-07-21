@@ -5,6 +5,7 @@ import {
     getDataInfoFromHct, 
     getUserKeysFromId,
     getPurchaseHistory,
+    getPurchaseContentInfoList,
     getDataEncKeyFromHct } from "../db/mysql";
 import SnarkInput from "../libsnark/struct/snarkInput";
 import _ from 'lodash';
@@ -170,6 +171,18 @@ export const getContentDataController = async (req, res) => {
     } catch (error) {
         console.error("콘텐츠 데이터 조회 중 예상치 못한 서버 오류:", error);
         res.status(500).json({ message: "콘텐츠를 불러오는 중 서버 오류가 발생했습니다." });
+    }
+}
+
+export const getPurchaseList = async (req,res) =>{
+    try{
+        const user = req.user;
+        const purchaseList = await getPurchaseContentInfoList(user.user_id);
+
+        res.status(200).send(purchaseList);
+    }catch(error){
+        console.error("getPurchaseList 오류: ", error);
+        res.status(500).json({ message: " 서버 오류가 발생했습니다." });
     }
 }
 

@@ -70,7 +70,7 @@ export default function Join() {
   return (
     <>
       <Helmet>
-        회원가입
+        <title>회원가입</title>
       </Helmet>
       <div className="join-container">
         <h2>Join</h2>

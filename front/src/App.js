@@ -8,6 +8,7 @@ import Header from "./componet/Header";
 import DataList from "./componet/user/DataList";
 import RegistData from "./componet/user/RegistData";
 import Logout from "./componet/user/Logout";
+import PurchaseList from "./componet/user/PurchaseList"
 import PrivateRoute from "./componet/user/PrivateRoute";
 
 
@@ -37,7 +38,14 @@ function App() {
               </PrivateRoute>
             }
           />
-
+          <Route
+            path="/purchase_list"
+            element={
+              <PrivateRoute>
+                <PurchaseList />
+              </PrivateRoute>
+            }
+          />
           <Route path="*" element={<Empty />} />
         </Routes>
       </div>

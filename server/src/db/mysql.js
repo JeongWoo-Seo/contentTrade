@@ -323,18 +323,37 @@ export async function getPurchaseHistory(userId, h_ct = null) {
 
     try {
         const [rows] = await connection.query(query, values);
-
-        if (h_ct) {
-            console.log(`사용자 ${userId}의 콘텐츠 ${h_ct} 구매 이력 조회 성공. ${rows.length}건.`);
-        } else {
-            console.log(`사용자 ${userId}의 전체 구매 이력 조회 성공. 총 ${rows.length}건.`);
-        }
         
         return rows;
-
     } catch (error) {
         console.error('getPurchaseHistory 오류:', error);
+        throw error;
+    }
+}
 
+export async function getPurchaseContentInfoList(userId){
+    if (!userId) {
+        throw new Error("사용자 ID가 제공되지 않았습니다.");
+    }
+    const query = 
+        `SELECT 
+            cl.id AS content_id,
+            cl.title,
+            cl.descript,
+            cl.h_ct
+        FROM 
+            buy_history bh
+        JOIN 
+            content_list cl ON bh.h_ct = cl.h_ct
+        WHERE 
+            bh.user_id = ?
+        `;
+
+    try {
+        const [rows] = await promiseConnection.execute(query, [userId]);
+        return rows;
+    } catch (error) {
+        console.error("getPurchaseContentInfoList 오류:", error);
         throw error;
     }
 }

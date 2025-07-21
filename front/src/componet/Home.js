@@ -18,6 +18,9 @@ export default function Home() {
           <Link to="/content_list" className="menu-link">
             Content List
           </Link>
+          <Link to="/purchase_list" className="menu-link">
+            Purchase List
+          </Link>
         </div>
       </div>
     </>

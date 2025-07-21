@@ -57,7 +57,7 @@ export default function Login() {
   return (
     <>
       <Helmet>
-        로그인
+        <title>로그인</title>
       </Helmet>
 
       <div className="login-container">
