@@ -266,7 +266,7 @@ export async function getDataInfoFromHct(h_ct) {
 
 export async function getDataEncKeyFromHct(h_ct) {
     const query = `
-        SELECT enc_key, data_path 
+        SELECT title,enc_key, data_path 
         FROM content_list 
         WHERE h_ct = ?
     `;
@@ -322,7 +322,7 @@ export async function getPurchaseHistory(userId, h_ct = null) {
     }
 
     try {
-        const [rows] = await connection.query(query, values);
+        const [rows] = await promiseConnection.query(query, values);
         
         return rows;
     } catch (error) {

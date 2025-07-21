@@ -14,6 +14,7 @@ import fs from 'fs';
 import { contractRegistData } from "../contract/contract";
 import { getContractProof, registDataInputJsonToContractFormat } from "../contract/utils";
 import Encryption from '../crypto/encryption';
+import Config from "../utils/config";
 
 //import LibSnark from "../libsnark/libsnark";
 
@@ -138,9 +139,10 @@ export const getContentDatafromHctController = async (req, res) => {
     }
 };
 
-export const getContentDataController = async (req, res) => {
+export const getDecContentDataController = async (req, res) => {
     try {
         const h_ct = req.params.h_ct;
+
         if (!h_ct) {
             console.warn("Content hash (h_ct) missing from request parameters.");
             return res.status(400).json({ message: "콘텐츠 식별자가 제공되지 않았습니다." });
@@ -157,19 +159,19 @@ export const getContentDataController = async (req, res) => {
         }
 
         const contentInfo = await getDataEncKeyFromHct(h_ct);
-        if (!contentInfo || !contentInfo.enc_key || !contentInfo.data_path) {
+        if (!contentInfo || !contentInfo.title || !contentInfo.enc_key || !contentInfo.data_path) {
             console.error(`Content info for h_ct ${h_ct} not found or incomplete.`);
             return res.status(500).json({ message: "콘텐츠 정보를 불러올 수 없습니다." });
         }
-        const { enc_key, data_path } = contentInfo;
+        const { title,enc_key, data_path } = contentInfo;
         const symEnc = new Encryption.symmetricKeyEncryption(enc_key)
         const CT = _.get(JSON.parse(fs.readFileSync(data_path, 'utf-8')), 'ct_data');
         const dec = symEnc.DecData(new Encryption.sCTdata(CT.r, CT.ct));
-        const dataString = hexStrToString(dec)
+        const dataString = hexStrToString(dec);
 
-        res.status(200).send(dataString);
+        res.status(200).send({title: title,data:dataString});
     } catch (error) {
-        console.error("콘텐츠 데이터 조회 중 예상치 못한 서버 오류:", error);
+        console.error("getDecContentDataController:", error);
         res.status(500).json({ message: "콘텐츠를 불러오는 중 서버 오류가 발생했습니다." });
     }
 }
@@ -191,7 +193,6 @@ const hexStrToString = (strArr) => {
     let ret = ''
     for (let i = 0; i < Number(Config.dataBlockNum); i++) {
         if (strArr[i] === '0') continue;
-        console.log(strArr[i]);
         ret += Buffer.from(strArr[i].padStart(64, '0'), 'hex')
     }
     return ret

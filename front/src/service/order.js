@@ -31,7 +31,7 @@ export const orderContent = async (h_ct,tradeContract) => {
         const pubkey_cons = PublicKey.fromUserKey(consKey,'cons')
 
         // get content info to h_ct
-        const contentInfo = await httpCli.get(`content/list/contentInfo/hct/${h_ct}`);
+        const contentInfo = await httpCli.get(`content/list/contentInfo/h_ct/${h_ct}`);
         const content = contentInfo.data;
         const pubkey_peer = new PublicKey(content.pk_own,content.pk_enc,'peer');
         

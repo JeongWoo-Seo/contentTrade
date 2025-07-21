@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import httpCli from "../../utils/http";
 import useApiErrorHandler from "../../hooks/useApiErrorHandler";
 import { Helmet } from "react-helmet-async";
@@ -47,6 +48,7 @@ export default function PurchaseList() {
                             <th>번호</th>
                             <th>제목</th>
                             <th>설명</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -55,6 +57,7 @@ export default function PurchaseList() {
                                 <td>{index + 1}</td>
                                 <td>{item.title}</td>
                                 <td>{item.descript}</td>
+                                <td><Link to={`/purchase_list/${item.h_ct}`}>읽기</Link></td>
                             </tr>
                         ))}
                     </tbody>
