@@ -168,7 +168,7 @@ export const getDecContentDataController = async (req, res) => {
         const CT = _.get(JSON.parse(fs.readFileSync(data_path, 'utf-8')), 'ct_data');
         const dec = symEnc.DecData(new Encryption.sCTdata(CT.r, CT.ct));
         const dataString = hexStrToString(dec);
-
+        console.log(dec);
         res.status(200).send({title: title,data:dataString});
     } catch (error) {
         console.error("getDecContentDataController:", error);
@@ -188,12 +188,23 @@ export const getPurchaseList = async (req,res) =>{
     }
 }
 
-
 const hexStrToString = (strArr) => {
-    let ret = ''
-    for (let i = 0; i < Number(Config.dataBlockNum); i++) {
-        if (strArr[i] === '0') continue;
-        ret += Buffer.from(strArr[i].padStart(64, '0'), 'hex')
+    const buffers = [];
+
+    for (let hex of strArr) {
+        // 1. null이거나 '0' 등 무의미한 값은 무시
+        if (!hex || hex === '0') continue;
+
+        // 2. 너무 짧은 값도 무시하거나 확인
+        if (hex.length < 2) continue;
+
+        try {
+            buffers.push(Buffer.from(hex, 'hex'));
+        } catch (e) {
+            console.warn('⚠️ hex 변환 실패:', hex);
+        }
     }
-    return ret
-}
+
+    // 3. 전체 concat 후 utf8로 디코딩
+    return Buffer.concat(buffers).toString('utf8').replace(/\x00+$/, '').trim();
+};

@@ -69,7 +69,7 @@ export const loginController = async (req, res) => {
                 return res.status(401).json({success: false,message: "로그인 실패: 비밀번호가 올바르지 않습니다." });
             }
 
-            const token = jwt.sign({ user_id: loginInfo.user_id, nickname : loginInfo.nickname }, JWT_SECRET, { expiresIn: '1h' });
+            const token = jwt.sign({ user_id: loginInfo.user_id, nickname : loginInfo.nickname }, JWT_SECRET);
 
             return res.status(200).json({
                 success: true, 
