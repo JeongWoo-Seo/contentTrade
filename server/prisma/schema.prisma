@@ -1,0 +1,64 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===================== 사용자 =====================
+model User {
+  id        Int      @id @default(autoincrement())
+  loginTk   String   @map("login_tk") @db.VarChar(60) // bcrypt 해시(60자 고정)
+  nickname  String   @unique @db.VarChar(100) // 닉네임(unique)
+  skEnc     String   @map("sk_enc") @db.VarChar(64) // 암호용 비밀키(hex)
+  pkOwn     String   @map("pk_own") @db.VarChar(64) // 소유권 공개키(hex)
+  pkEnc     String   @map("pk_enc") @db.VarChar(64) // 암호용 공개키(hex)
+  addr      String   @db.VarChar(64) // MiMC7 주소 Hash(pk_own, pk_enc)
+  eoa       String   @db.VarChar(42) // 이더리움 계정 주소(0x + 40hex)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  contents  ContentList[] // 작성한 콘텐츠
+  purchases BuyHistory[] // 구매 이력
+
+  @@map("user")
+}
+
+// ===================== 콘텐츠 =====================
+model ContentList {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  title     String   @db.Text // 제목
+  descript  String   @db.Text // 설명
+  hCt       String   @unique @map("h_ct") @db.VarChar(64) // 암호문 해시 Hash(CT_data)
+  hData     String   @map("h_data") @db.VarChar(64) // 원문 해시 Hash(data)
+  encKey    String   @map("enc_key") @db.VarChar(64) // 콘텐츠 대칭키
+  dataPath  String   @map("data_path") @db.Text // 암호문 저장 파일 경로
+  hK        String   @map("h_k") @db.VarChar(64) // 키 해시 Hash(pk_own, enc_key)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purchases BuyHistory[]
+
+  @@index([userId])
+  @@map("content_list")
+}
+
+// ===================== 구매 이력 =====================
+model BuyHistory {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  hCt       String   @map("h_ct") @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content ContentList @relation(fields: [hCt], references: [hCt], onDelete: Cascade)
+
+  @@unique([userId, hCt])
+  @@map("buy_history")
+}
