@@ -1,0 +1,218 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+// ============================================================
+// Enums
+// ============================================================
+
+enum ContentStatus {
+  PENDING
+  ACTIVE
+  SOLD_OUT
+  BLOCKED
+}
+
+enum BuyStatus {
+  PENDING
+  APPROVED
+  COMPLETED
+  FAILED
+}
+
+
+// ============================================================
+// User
+// ============================================================
+
+model User {
+  id       Int    @id @default(autoincrement())
+
+  // 로그인 ID
+  username String @unique @db.VarChar(100)
+
+  // 로그인/인증 관련 토큰
+  passwordHash  String @map("password_hash") @db.VarChar(60)
+
+  // 사용자의 공개키
+  pkOwn    String @map("pk_own") @db.VarChar(64)
+
+  // 암호화된 공개키
+  pkEnc    String @map("pk_enc") @db.VarChar(64)
+
+  // 사용자 주소
+  addr     String @db.VarChar(64)
+
+  // Ethereum EOA
+  eoa      String @db.VarChar(42)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+
+  // ----------------------------------------------------------
+  // Relations
+  // ----------------------------------------------------------
+
+  // 이 사용자가 작성한 소설
+  contents ContentList[]
+
+  // 이 사용자가 구매한 소설
+  purchases BuyHistory[]
+
+
+  @@map("user")
+}
+
+
+// ============================================================
+// ContentList
+// ============================================================
+
+model ContentList {
+  id       Int    @id @default(autoincrement())
+
+  // 소설 제목
+  title    String @db.VarChar(200)
+
+  // 작가 ID
+  authorId Int    @map("author_id")
+
+  // 판매 가격
+  price    Decimal @db.Decimal(18, 0)
+
+
+  // ----------------------------------------------------------
+  // 암호화된 소설 데이터
+  // ----------------------------------------------------------
+
+  // AES-256-GCM으로 암호화된 소설
+  // Base64 문자열
+  encryptedData String @map("encrypted_data") @db.Text
+
+  // AES-GCM IV / Nonce
+  // 12 bytes → Base64
+  iv String @db.VarChar(255)
+
+  // AES-GCM Authentication Tag
+  // 16 bytes → Base64
+  authTag String @map("auth_tag") @db.VarChar(255)
+
+
+  // ----------------------------------------------------------
+  // Data Key
+  // ----------------------------------------------------------
+
+  // 소설 암호화에 사용된 AES Data Key를
+  // MASTER_KEY로 암호화한 값
+  encryptedDataKey String @map("encrypted_data_key") @db.Text
+
+
+  // ----------------------------------------------------------
+  // 암호화 버전
+  // ----------------------------------------------------------
+
+  // 나중에 암호화 알고리즘이나 키 구조가 변경될 경우 사용
+  encryptionVersion Int @default(1) @map("encryption_version")
+
+
+  // ----------------------------------------------------------
+  // Content 검증
+  // ----------------------------------------------------------
+
+  // 원문 검증용 SHA-256 hash
+  // SHA-256을 HEX로 저장하면 64자
+  contentHash String? @map("content_hash") @db.VarChar(64)
+
+
+  // ----------------------------------------------------------
+  // Content 상태
+  // ----------------------------------------------------------
+
+  // PENDING / ACTIVE / SOLD_OUT / BLOCKED
+  status ContentStatus @default(PENDING)
+
+
+  // ----------------------------------------------------------
+  // Timestamp
+  // ----------------------------------------------------------
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+
+  // ----------------------------------------------------------
+  // Relations
+  // ----------------------------------------------------------
+
+  // 작성자
+  author User @relation(fields: [authorId], references: [id])
+
+  // 이 소설의 구매 기록
+  purchases BuyHistory[]
+
+
+  // ----------------------------------------------------------
+  // Index
+  // ----------------------------------------------------------
+
+  // 작성자별 소설 검색
+  @@index([authorId])
+
+  // 상태별 검색
+  @@index([status])
+
+  // 최신 소설 검색
+  @@index([createdAt])
+
+
+  @@map("content_list")
+}
+
+
+// ============================================================
+// BuyHistory
+// ============================================================
+
+model BuyHistory {
+  id Int @id @default(autoincrement())
+
+  // 구매자 ID
+  buyerId Int @map("buyer_id")
+
+  // 구매한 소설 ID
+  contentId Int @map("content_id")
+
+  // 구매 당시 가격
+  price Decimal @db.Decimal(18, 0)
+
+  // 거래 상태
+  status BuyStatus @default(PENDING)
+
+  // Ethereum transaction hash
+  txHash String? @map("tx_hash") @db.VarChar(66)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // 구매자
+  buyer User @relation(fields: [buyerId], references: [id])
+
+  // 구매한 소설
+  content ContentList @relation(fields: [contentId], references: [id])
+
+  @@index([buyerId])
+  @@index([contentId])
+  @@index([status])
+
+  @@unique([buyerId, contentId])
+
+  @@map("buy_history")
+}
