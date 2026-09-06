@@ -19,7 +19,7 @@ node_modules
 server/.DS_Store
 server/src/.DS_Store
 server/fileDb/*
-
+PROJECT_ANALYSIS.md
 
 *.dat
 *.dylib
