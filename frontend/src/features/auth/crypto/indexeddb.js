@@ -14,8 +14,8 @@ function openDb() {
   });
 }
 
-// Persist encrypted sk_own (plus IV/salt), keyed by account id.
-// Record shape: { id, encryptedSkOwn, iv, salt }
+// Persist encrypted credentials (plus IV/salt), keyed by account id.
+// Record shape: { id, walletAddress, encryptedPrivateKey, privateKeyIv, encryptedSkOwn, skOwnIv, salt }
 export function saveAccount(record) {
   return new Promise((resolve, reject) => {
     openDb()

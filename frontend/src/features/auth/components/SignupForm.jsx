@@ -4,7 +4,7 @@ import '../styles/SignupForm.css';
 
 export function SignupForm() {
   const { signup } = useAuth();
-  const [id, setId] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [loading, setLoading] = useState(false);
@@ -13,8 +13,8 @@ export function SignupForm() {
   const onSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!id.trim()) {
-      setError('ID를 입력해주세요.');
+    if (!username.trim()) {
+      setError('아이디를 입력해주세요.');
       return;
     }
     if (password.length < 8) {
@@ -28,7 +28,7 @@ export function SignupForm() {
 
     setLoading(true);
     try {
-      await signup({ id: id.trim(), password });
+      await signup({ username: username.trim(), password });
     } catch (err) {
       setError(err?.message ?? '회원가입 중 오류가 발생했습니다.');
     } finally {
@@ -41,12 +41,12 @@ export function SignupForm() {
       <h2>회원가입</h2>
 
       <label className="field">
-        <span>ID</span>
+        <span>아이디</span>
         <input
           type="text"
-          value={id}
+          value={username}
           autoComplete="username"
-          onChange={(e) => setId(e.target.value)}
+          onChange={(e) => setUsername(e.target.value)}
           placeholder="아이디"
         />
       </label>

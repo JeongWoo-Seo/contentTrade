@@ -3,7 +3,7 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import '../styles/LogoutButton.css';
 
 export function LogoutButton() {
-  const { logout, id } = useAuth();
+  const { logout, username } = useAuth();
   const [loading, setLoading] = useState(false);
 
   const onClick = async () => {
@@ -17,7 +17,7 @@ export function LogoutButton() {
 
   return (
     <button type="button" className="logout-button" onClick={onClick} disabled={loading}>
-      {loading ? '로그아웃 중…' : `로그아웃${id ? ` (${id})` : ''}`}
+      {loading ? '로그아웃 중…' : `로그아웃${username ? ` (${username})` : ''}`}
     </button>
   );
 }

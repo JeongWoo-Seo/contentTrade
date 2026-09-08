@@ -7,7 +7,7 @@ import {
 } from '../features/auth';
 
 export default function AuthPage() {
-  const { status, id, ena, pkOwn, pkEnc } = useAuth();
+  const { status, username, walletAddress } = useAuth();
   const [mode, setMode] = useState('signup');
 
   if (status === 'authenticated') {
@@ -16,17 +16,11 @@ export default function AuthPage() {
         <h1>로그인됨</h1>
 
         <dl className="account-info">
-          <dt>ID</dt>
-          <dd>{id}</dd>
+          <dt>아이디</dt>
+          <dd>{username}</dd>
 
-          <dt>ena</dt>
-          <dd>{ena}</dd>
-
-          <dt>pk_own</dt>
-          <dd>{pkOwn}</dd>
-
-          <dt>pk_enc</dt>
-          <dd>{pkEnc}</dd>
+          <dt>지갑 주소</dt>
+          <dd>{walletAddress}</dd>
         </dl>
 
         <LogoutButton />

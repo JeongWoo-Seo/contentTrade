@@ -1,22 +1,7 @@
 // Auth API client.
-//
-// Cookie-based token flow (server to be updated accordingly):
-//   POST /auth/signup  { id, password, ena, pk_own, pk_enc } -> { accessToken?, ... }
-//   POST /auth/login   { id, password }                       -> { accessToken, ... }
-//   POST /auth/refresh (no body — refresh token read from cookie) -> { accessToken, ... }
-//   POST /auth/logout  (server clears the refresh cookie)
-//
-// - Access token (JWT): short-lived, held in memory, sent as `Authorization: Bearer`.
-// - Refresh token: HttpOnly + Secure cookie, never touched by JS. Every fetch uses
-//   `credentials: 'include'` so the browser sends/receives it automatically.
-//   Rotation is server-side: each /auth/refresh sets a new cookie and invalidates
-//   the old one.
-//
-// `password` is sent over TLS; the SERVER applies Argon2id (section 12).
-
 import { getAccessToken, setAccessToken, clearAccessToken } from '../crypto/tokenStore.js';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8005';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 async function request(path, { method = 'POST', body, token } = {}) {
   const headers = { 'Content-Type': 'application/json' };
@@ -62,8 +47,6 @@ function buildBody(body) {
   return JSON.stringify(body);
 }
 
-// Authenticated fetch: attaches the Bearer token and, on 401, refreshes the
-// access token (single-flight) then retries ONCE. Throws if refresh fails.
 export async function authFetch(path, { method = 'GET', body, headers = {}, ...rest } = {}) {
   const token = getAccessToken();
   if (!token) throw new Error('인증 토큰이 없습니다. 로그인해주세요.');

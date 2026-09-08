@@ -38,13 +38,13 @@ export async function deriveAccount(skOwn) {
   const skEncField = await poseidonHash([skOwnField, DOMAIN_ENC]); // encryption secret
   const skEncScalar = skEncField % SUBGROUP_ORDER; // reduce to valid ECC scalar
   const pkEncPoint = await scalarMulBase(skEncScalar); // pk_enc = sk_enc * G
-  const ena = await poseidonHash([pkOwn, pkEncPoint[0], pkEncPoint[1]]); // account commitment
+  const addr = await poseidonHash([pkOwn, pkEncPoint[0], pkEncPoint[1]]); // account commitment
 
   return {
     skOwn, // secret — never leaves the browser unencrypted
     skEnc: bigintToHex64(skEncField), // secret — derived from sk_own
     pkOwn: bigintToHex64(pkOwn), // public
     pkEnc: pointToHex(pkEncPoint), // public (x||y)
-    ena: bigintToHex64(ena), // public commitment
+    addr: bigintToHex64(addr), // public commitment
   };
 }
