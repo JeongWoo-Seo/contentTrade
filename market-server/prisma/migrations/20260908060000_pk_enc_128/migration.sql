@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "user" ALTER COLUMN "pk_enc" SET DATA TYPE VARCHAR(128);

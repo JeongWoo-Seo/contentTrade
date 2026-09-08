@@ -38,19 +38,19 @@ model User {
   // 로그인 ID
   username String @unique @db.VarChar(100)
 
-  // 로그인/인증 관련 토큰
-  passwordHash  String @map("password_hash") @db.VarChar(60)
+  // 로그인/인증용 Argon2id 해시 (PHC encoded string)
+  passwordHash  String @map("password_hash") @db.VarChar(255)
 
   // 사용자의 공개키
   pkOwn    String @map("pk_own") @db.VarChar(64)
 
-  // 암호화된 공개키
-  pkEnc    String @map("pk_enc") @db.VarChar(64)
+  // 암호화된 공개키 (BabyJubjub point, x||y = 128 hex)
+  pkEnc    String @map("pk_enc") @db.VarChar(128)
 
-  // 사용자 주소
-  addr     String @db.VarChar(64)
+  // 사용자 주소 
+  addr     String @unique @db.VarChar(64)
 
-  // Ethereum EOA
+  // Ethereum EOA 
   eoa      String @db.VarChar(42)
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -66,6 +66,8 @@ model User {
 
   // 이 사용자가 구매한 소설
   purchases BuyHistory[]
+  // 이 사용자의 refresh token
+  refreshTokens RefreshToken[]
 
 
   @@map("user")
@@ -215,4 +217,44 @@ model BuyHistory {
   @@unique([buyerId, contentId])
 
   @@map("buy_history")
+}
+
+
+// ============================================================
+// RefreshToken
+// ============================================================
+
+model RefreshToken {
+  id Int @id @default(autoincrement())
+
+  // 토큰 소유자
+  userId Int @map("user_id")
+
+  // Refresh Token 원문(JWT)을 SHA-256으로 hash한 값 (hex, 64자)
+  // 원문은 DB에 저장하지 않는다.
+  tokenHash String @map("token_hash") @db.VarChar(64)
+
+  // JWT의 jti (unique token id)
+  jti String @unique @db.VarChar(36)
+
+  // Rotation family id — 하나의 로그인 세션에서 발급된
+  // Refresh Token들은 같은 family_id를 공유한다 (재사용 감지용)
+  familyId String @map("family_id") @db.VarChar(36)
+
+  expiresAt DateTime @map("expires_at")
+
+  // revoke된 시각 (null이면 유효)
+  revokedAt DateTime? @map("revoked_at")
+
+  // rotation 시 이 토큰을 대체한 새 토큰의 jti
+  replacedBy String? @map("replaced_by") @db.VarChar(36)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+
+  @@map("refresh_tokens")
 }
