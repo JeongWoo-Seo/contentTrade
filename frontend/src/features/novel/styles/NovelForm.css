@@ -1,0 +1,63 @@
+.novel-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 640px;
+  margin: 1rem auto;
+  padding: 1.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.novel-form h2 {
+  margin: 0 0 0.5rem;
+}
+
+.novel-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.novel-field input,
+.novel-field textarea {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font: inherit;
+  resize: vertical;
+}
+
+.char-count {
+  align-self: flex-end;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.char-count.over {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.novel-form-error {
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.novel-submit {
+  padding: 0.6rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.novel-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

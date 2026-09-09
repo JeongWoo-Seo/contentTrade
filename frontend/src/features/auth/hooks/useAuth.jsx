@@ -91,7 +91,7 @@ export function AuthProvider({ children }) {
       aesKey,
       pkOwn: account.pkOwn,
       pkEnc: account.pkEnc,
-      eoa: account.eoa,
+      addr: account.addr,
     });
 
     if (record.encryptedPrivateKey && record.privateKeyIv) {

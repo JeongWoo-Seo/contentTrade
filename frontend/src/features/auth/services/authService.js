@@ -29,7 +29,7 @@ export async function refreshAccessToken() {
   if (!refreshPromise) {
     // No body: the server reads the HttpOnly refresh cookie and, on rotation,
     // sets a new one via Set-Cookie.
-    refreshPromise = request('/auth/refresh', { method: 'POST' })
+    refreshPromise = request('/api/auth/refresh', { method: 'POST' })
       .then((res) => {
         setAccessToken(res.accessToken);
         return res.accessToken;
@@ -76,14 +76,14 @@ export async function authFetch(path, { method = 'GET', body, headers = {}, ...r
 
 export const authService = {
   async signup(payload) {
-    const res = await request('/auth/signup', { body: payload });
+    const res = await request('/api/auth/signup', { body: payload });
     // Optional auto-login: server may return an access token on registration.
     if (res.accessToken) setAccessToken(res.accessToken);
     return res;
   },
 
   async login(payload) {
-    const res = await request('/auth/login', { body: payload });
+    const res = await request('/api/auth/login', { body: payload });
     if (res.accessToken) setAccessToken(res.accessToken);
     return res;
   },

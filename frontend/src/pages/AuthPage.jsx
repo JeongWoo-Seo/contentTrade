@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   useAuth,
   SignupForm,
@@ -23,7 +24,10 @@ export default function AuthPage() {
           <dd>{walletAddress}</dd>
         </dl>
 
-        <LogoutButton />
+        <div className="auth-actions">
+          <Link to="/novels" className="auth-novels-link">소설 목록으로 이동</Link>
+          <LogoutButton />
+        </div>
       </main>
     );
   }

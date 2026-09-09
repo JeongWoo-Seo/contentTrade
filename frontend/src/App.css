@@ -41,3 +41,50 @@
   font-family: monospace;
   font-size: 0.8rem;
 }
+
+.auth-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.auth-novels-link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+/* 공통 페이지 레이아웃 (소설 목록/등록) */
+.page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.page-nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 1.5rem;
+}
+
+.page-nav .brand {
+  font-weight: 700;
+  margin-right: auto;
+}
+
+.page-nav a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.success-banner {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
