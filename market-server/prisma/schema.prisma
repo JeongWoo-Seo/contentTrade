@@ -8,54 +8,57 @@ datasource db {
   provider = "postgresql"
 }
 
-
 // ============================================================
 // Enums
 // ============================================================
 
 enum ContentStatus {
-  PENDING
-  ACTIVE
-  SOLD_OUT
-  BLOCKED
+  ACTIVE // 판매 중
+  DISCONTINUED // 절판
+  BANNED // 판매 금지
+}
+
+enum RegistrationStatus {
+  PENDING // 등록 요청됨
+  PROCESSING // 등록 처리 중
+  APPROVED // 등록 승인
+  REJECTED // 등록 거절
 }
 
 enum BuyStatus {
-  PENDING
-  APPROVED
-  COMPLETED
-  FAILED
+  REQUESTED // 구매 요청 생성
+  PENDING // 거래 승인 대기
+  APPROVED // 최종 승인
+  REJECTED // 거래 거절
 }
-
 
 // ============================================================
 // User
 // ============================================================
 
 model User {
-  id       Int    @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   // 로그인 ID
   username String @unique @db.VarChar(100)
 
   // 로그인/인증용 Argon2id 해시 (PHC encoded string)
-  passwordHash  String @map("password_hash") @db.VarChar(255)
+  passwordHash String @map("password_hash") @db.VarChar(255)
 
   // 사용자의 공개키
-  pkOwn    String @map("pk_own") @db.VarChar(64)
+  pkOwn String @map("pk_own") @db.VarChar(64)
 
   // 암호화된 공개키 (BabyJubjub point, x||y = 128 hex)
-  pkEnc    String @map("pk_enc") @db.VarChar(128)
+  pkEnc String @map("pk_enc") @db.VarChar(128)
 
   // 사용자 주소 
-  addr     String @unique @db.VarChar(64)
+  addr String @unique @db.VarChar(64)
 
   // Ethereum EOA 
-  eoa      String @db.VarChar(42)
+  eoa String @db.VarChar(42)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-
 
   // ----------------------------------------------------------
   // Relations
@@ -65,31 +68,55 @@ model User {
   contents ContentList[]
 
   // 이 사용자가 구매한 소설
-  purchases BuyHistory[]
+  purchases            BuyHistory[]
   // 이 사용자의 refresh token
-  refreshTokens RefreshToken[]
-
+  refreshTokens        RefreshToken[]
+  contentRegistrations ContentRegistration[]
 
   @@map("user")
 }
 
+model ContentRegistration {
+  id Int @id @default(autoincrement())
+
+  title       String  @db.VarChar(200)
+  description String  @db.Text
+  authorId    Int     @map("author_id")
+  price       Decimal @db.Decimal(18, 0)
+
+  status RegistrationStatus @default(PENDING)
+
+  rejectionReason String? @map("rejection_reason") @db.Text
+
+  // 승인 후 실제 ContentList와 연결
+  contentId Int? @unique @map("content_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  author      User         @relation(fields: [authorId], references: [id])
+  contentList ContentList? @relation(fields: [contentId], references: [id])
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@map("content_registrations")
+}
 
 // ============================================================
 // ContentList
 // ============================================================
 
 model ContentList {
-  id       Int    @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   // 소설 제목
-  title    String @db.VarChar(200)
+  title String @db.VarChar(200)
 
   // 작가 ID
-  authorId Int    @map("author_id")
-
+  authorId    Int     @map("author_id")
+  description String? @db.Text
   // 판매 가격
-  price    Decimal @db.Decimal(18, 0)
-
+  price       Decimal @db.Decimal(18, 0)
 
   // ----------------------------------------------------------
   // 암호화된 소설 데이터
@@ -107,7 +134,6 @@ model ContentList {
   // 16 bytes → Base64
   authTag String @map("auth_tag") @db.VarChar(255)
 
-
   // ----------------------------------------------------------
   // Data Key
   // ----------------------------------------------------------
@@ -116,7 +142,6 @@ model ContentList {
   // MASTER_KEY로 암호화한 값
   encryptedDataKey String @map("encrypted_data_key") @db.Text
 
-
   // ----------------------------------------------------------
   // 암호화 버전
   // ----------------------------------------------------------
@@ -124,23 +149,19 @@ model ContentList {
   // 나중에 암호화 알고리즘이나 키 구조가 변경될 경우 사용
   encryptionVersion Int @default(1) @map("encryption_version")
 
-
   // ----------------------------------------------------------
   // Content 검증
   // ----------------------------------------------------------
 
   // 원문 검증용 SHA-256 hash
   // SHA-256을 HEX로 저장하면 64자
-  contentHash String? @map("content_hash") @db.VarChar(64)
-
+  contentHash String @map("content_hash") @db.VarChar(64)
 
   // ----------------------------------------------------------
   // Content 상태
   // ----------------------------------------------------------
 
-  // PENDING / ACTIVE / SOLD_OUT / BLOCKED
-  status ContentStatus @default(PENDING)
-
+  status ContentStatus @default(ACTIVE)
 
   // ----------------------------------------------------------
   // Timestamp
@@ -149,7 +170,6 @@ model ContentList {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-
   // ----------------------------------------------------------
   // Relations
   // ----------------------------------------------------------
@@ -157,9 +177,10 @@ model ContentList {
   // 작성자
   author User @relation(fields: [authorId], references: [id])
 
-  // 이 소설의 구매 기록
   purchases BuyHistory[]
 
+  // 이 소설을 생성한 등록 요청 (승인 시 연결)
+  registration ContentRegistration?
 
   // ----------------------------------------------------------
   // Index
@@ -167,17 +188,12 @@ model ContentList {
 
   // 작성자별 소설 검색
   @@index([authorId])
-
   // 상태별 검색
   @@index([status])
-
   // 최신 소설 검색
   @@index([createdAt])
-
-
   @@map("content_list")
 }
-
 
 // ============================================================
 // BuyHistory
@@ -196,7 +212,10 @@ model BuyHistory {
   price Decimal @db.Decimal(18, 0)
 
   // 거래 상태
-  status BuyStatus @default(PENDING)
+  status BuyStatus @default(REQUESTED)
+
+  // 거래 거절 사유
+  rejectionReason String? @map("rejection_reason") @db.Text
 
   // Ethereum transaction hash
   txHash String? @map("tx_hash") @db.VarChar(66)
@@ -204,21 +223,16 @@ model BuyHistory {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // 구매자
   buyer User @relation(fields: [buyerId], references: [id])
 
-  // 구매한 소설
   content ContentList @relation(fields: [contentId], references: [id])
 
+  @@unique([buyerId, contentId])
   @@index([buyerId])
   @@index([contentId])
   @@index([status])
-
-  @@unique([buyerId, contentId])
-
   @@map("buy_history")
 }
-
 
 // ============================================================
 // RefreshToken
@@ -255,6 +269,5 @@ model RefreshToken {
 
   @@index([userId])
   @@index([familyId])
-
   @@map("refresh_tokens")
 }

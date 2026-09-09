@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import authRoutes from "./routes/auth.routes.js";
+import novelRoutes from "./routes/novel.routes.js";
 import { errorHandler } from "./utils/errors.js";
 
 const app = express();
@@ -24,7 +25,8 @@ app.get("/", (_req, res) => {
   });
 });
 
-app.use("/auth", authRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/novels", novelRoutes);
 
 // Error handler 향후 등록 필요
 app.use(errorHandler);

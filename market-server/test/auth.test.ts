@@ -3,6 +3,7 @@ import { after, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import jwt from "jsonwebtoken";
 import { Wallet } from "ethers";
+import { randomBytes } from "node:crypto";
 import request from "supertest";
 import app from "../src/app.js";
 import { prisma } from "../src/lib/prisma.js";
@@ -39,12 +40,24 @@ function refreshTokenFrom(res: request.Response): string | undefined {
   return cookie ? cookie.split(";")[0].split("=")[1] : undefined;
 }
 
-function randomWalletAddress(): string {
+function randomEoa(): string {
   return Wallet.createRandom().address;
 }
 
-function signup(username = USERNAME, password = PASSWORD, walletAddress = randomWalletAddress()) {
-  return request(app).post("/auth/signup").send({ username, password, walletAddress });
+function randomAddr(): string {
+  return randomBytes(32).toString("hex");
+}
+
+function signup(username = USERNAME, password = PASSWORD, overrides: Record<string, unknown> = {}) {
+  return request(app).post("/auth/signup").send({
+    username,
+    password,
+    addr: randomAddr(),
+    pkOwn: "a".repeat(64),
+    pkEnc: "b".repeat(128),
+    eoa: randomEoa(),
+    ...overrides,
+  });
 }
 
 function login(username = USERNAME, password = PASSWORD) {
@@ -71,7 +84,7 @@ describe("POST /auth/signup", () => {
     assert.equal(res.status, 201);
     assert.equal(res.body.username, USERNAME);
     assert.ok(typeof res.body.id === "number");
-    assert.ok(res.body.walletAddress && res.body.walletAddress.startsWith("0x"));
+    assert.ok(res.body.eoa && res.body.eoa.startsWith("0x"));
     assert.equal(res.body.passwordHash, undefined);
     assert.equal(res.body.password_hash, undefined);
     assert.equal(res.body.password, undefined);
@@ -105,36 +118,37 @@ describe("POST /auth/signup", () => {
     assert.ok(user.passwordHash.startsWith("$argon2id$"));
   });
 
-  it("rejects an invalid wallet address", async () => {
-    const res = await signup(USERNAME, PASSWORD, "invalid");
+  it("rejects an invalid eoa", async () => {
+    const res = await signup(USERNAME, PASSWORD, { eoa: "invalid" });
     assert.equal(res.status, 400);
     assert.equal(res.body.error, "VALIDATION_ERROR");
   });
 
-  it("rejects a duplicate wallet address", async () => {
-    const wallet = randomWalletAddress();
-    await signup("user1", PASSWORD, wallet);
-    const res = await signup("user2", PASSWORD, wallet);
+  it("rejects a duplicate addr", async () => {
+    const addr = randomAddr();
+    await signup("user1", PASSWORD, { addr });
+    const res = await signup("user2", PASSWORD, { addr });
     assert.equal(res.status, 409);
     assert.equal(res.body.error, "WALLET_ALREADY_EXISTS");
   });
 
   it("stores and returns pk_own / pk_enc / eoa", async () => {
-    const wallet = randomWalletAddress();
+    const eoa = randomEoa();
+    const addr = randomAddr();
     const pkOwn = "a".repeat(64);
     const pkEnc = "b".repeat(128);
     const res = await request(app)
       .post("/auth/signup")
-      .send({ username: USERNAME, password: PASSWORD, walletAddress: wallet, pkOwn, pkEnc, eoa: wallet });
+      .send({ username: USERNAME, password: PASSWORD, addr, pkOwn, pkEnc, eoa });
     assert.equal(res.status, 201);
     assert.equal(res.body.pkOwn, pkOwn);
     assert.equal(res.body.pkEnc, pkEnc);
-    assert.equal(res.body.eoa, wallet);
+    assert.equal(res.body.eoa, eoa);
 
     const user = await prisma.user.findUnique({ where: { username: USERNAME } });
     assert.equal(user!.pkOwn, pkOwn);
     assert.equal(user!.pkEnc, pkEnc);
-    assert.equal(user!.eoa, wallet);
+    assert.equal(user!.eoa, eoa);
   });
 });
 
@@ -155,7 +169,7 @@ describe("POST /auth/login", () => {
     assert.equal(res.body.expiresIn, 900);
     assert.equal(res.body.refreshExpiresIn, 604800);
     assert.equal(res.body.user.username, USERNAME);
-    assert.ok(res.body.user.walletAddress && res.body.user.walletAddress.startsWith("0x"));
+    assert.ok(res.body.user.eoa && res.body.user.eoa.startsWith("0x"));
 
     const refresh = refreshTokenFrom(res);
     assert.ok(refresh, "refresh token cookie must be set");
@@ -194,7 +208,7 @@ describe("GET /auth/me (access token middleware)", () => {
     const res = await request(app).get("/auth/me").set("Authorization", `Bearer ${loginRes.body.accessToken}`);
     assert.equal(res.status, 200);
     assert.equal(res.body.username, USERNAME);
-    assert.ok(res.body.walletAddress && res.body.walletAddress.startsWith("0x"));
+    assert.ok(res.body.eoa && res.body.eoa.startsWith("0x"));
   });
 
   it("rejects missing token", async () => {

@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "node --import tsx --test test/auth.test.ts",
+    "test": "node --test-concurrency=1 --import tsx --test test/auth.test.ts test/novel.test.ts",
     "db:migrate": "prisma migrate dev"
   },
   "keywords": [],
