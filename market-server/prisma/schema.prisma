@@ -97,9 +97,26 @@ model ContentRegistration {
   author      User         @relation(fields: [authorId], references: [id])
   contentList ContentList? @relation(fields: [contentId], references: [id])
 
+  source ContentRegistrationSource?
+
   @@index([authorId])
   @@index([createdAt])
   @@map("content_registrations")
+}
+
+model ContentRegistrationSource {
+  id Int @id @default(autoincrement())
+
+  registrationId Int @unique @map("registration_id")
+
+  // ZK Proof 생성에 사용할 원문
+  originalText String @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  registration ContentRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@map("content_registration_sources")
 }
 
 // ============================================================
@@ -162,6 +179,7 @@ model ContentList {
   // ----------------------------------------------------------
 
   status ContentStatus @default(ACTIVE)
+  txHash String @map("tx_hash")
 
   // ----------------------------------------------------------
   // Timestamp

@@ -1,6 +1,8 @@
-import { contentRegistrationRepository } from "../repositories/content-registration.repository.js";
+import { contentRegistrationRepository, contentRegistrationSourceRepository } from "../repositories/content-registration.repository.js";
 import { contentListRepository } from "../repositories/content-list.repository.js";
 import { ApiError } from "../utils/errors.js";
+import { sendProofRequested } from "../kafka/producer.js";
+import { prisma } from "../lib/prisma.js";
 
 const MAX_TITLE_LENGTH = 50;
 const MAX_DESCRIPTION_LENGTH = 200;
@@ -30,7 +32,6 @@ function parsePagination(pageRaw: unknown, sizeRaw: unknown) {
 }
 
 export const novelService = {
-  // 소설 등록 요청: ContentRegistration INSERT (status=PENDING). Kafka 미구현.
   async registerNovel(userId: number, { title, description, content, price }: RegisterNovelInput) {
     const trimmedTitle = typeof title === "string" ? title.trim() : "";
     const trimmedDescription = typeof description === "string" ? description.trim() : "";
@@ -53,15 +54,22 @@ export const novelService = {
       throw new ApiError(400, "VALIDATION_ERROR", "price must be a non-negative integer");
     }
 
-    const registration = await contentRegistrationRepository.create({
+    //db 등록
+    const registration = await contentRegistrationRepository.createWithSource({
       title: trimmedTitle,
       description: trimmedDescription,
       authorId: userId,
       price,
+      originalText: content,
     });
 
-    // TODO: Publish CONTENT_REGISTRATION_REQUESTED event to Kafka.
-    // This will be consumed by the future ZK Worker.
+    //kafka 작업 지시
+    await sendProofRequested({
+      jobId: crypto.randomUUID(),
+      proofType: "CONTENT_REGISTRATION",
+      registrationId: registration.id,
+      requestedAt: new Date().toISOString(),
+    });
 
     return {
       id: registration.id,
@@ -73,6 +81,50 @@ export const novelService = {
       createdAt: registration.createdAt,
       updatedAt: registration.updatedAt,
     };
+  },
+
+  async failedRegistration({
+    registrationId,
+    reason,
+  }: {
+    registrationId: number,
+    reason: string
+  }) {
+    return contentRegistrationRepository.failedRegistration({
+      registrationId,
+      reason
+    });
+  },
+
+  async completeRegistration({
+    registrationId,
+    encryptedData,
+    iv,
+    authTag,
+    encryptedDataKey,
+    contentHash,
+    encryptionVersion,
+    txHash,
+  }: {
+    registrationId: number;
+    encryptedData: string;
+    iv: string;
+    authTag: string;
+    encryptedDataKey: string;
+    contentHash: string;
+    encryptionVersion: number;
+    txHash: string;
+  }) {
+    return contentRegistrationRepository.completeRegistration({
+      registrationId,
+      encryptedData,
+      iv,
+      authTag,
+      encryptedDataKey,
+      contentHash,
+      encryptionVersion,
+      txHash,
+    });
   },
 
   // 등록 완료(승인)된 소설 목록: ContentList + 작가 이름.
@@ -97,7 +149,7 @@ export const novelService = {
     };
   },
 
-  // 내 등록 요청 목록: ContentRegistration (본인 것만).
+  // 내 등록 요청 목록: ContentRegistration
   async listMyRegistrations(userId: number, pageRaw: unknown, sizeRaw: unknown) {
     const { page, size, skip, take } = parsePagination(pageRaw, sizeRaw);
     const { items, total } = await contentRegistrationRepository.findManyByAuthor(userId, skip, take);
@@ -118,4 +170,5 @@ export const novelService = {
       total,
     };
   },
+
 };

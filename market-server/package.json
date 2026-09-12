@@ -8,22 +8,24 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "node --test-concurrency=1 --import tsx --test test/auth.test.ts test/novel.test.ts",
-    "db:migrate": "prisma migrate dev"
+    "db_migrate": "prisma migrate dev"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
+    "dotnet": "^1.1.4",
     "ethers": "^6.17.0",
     "express": "^5.2.1",
     "hash-wasm": "^4.12.0",
     "jsonwebtoken": "^9.0.3",
+    "kafkajs": "^2.2.4",
     "pg": "^8.23.0",
     "prisma": "^7.10.0"
   },
