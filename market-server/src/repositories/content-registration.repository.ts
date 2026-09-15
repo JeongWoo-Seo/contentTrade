@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { PrismaClient, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 export const contentRegistrationRepository = {
 
@@ -63,20 +63,26 @@ export const contentRegistrationRepository = {
   async completeRegistration({
     registrationId,
     encryptedData,
-    iv,
-    authTag,
+    dataIv,
+    keyIv,
+    keyAuthTag,
     encryptedDataKey,
-    contentHash,
     encryptionVersion,
+    contentHash,
+    keyHash,
+    encryptedDataHash,
     txHash,
   }: {
     registrationId: number;
     encryptedData: string;
-    iv: string;
-    authTag: string;
+    dataIv: string;
     encryptedDataKey: string;
-    contentHash: string;
+    keyIv: string;
+    keyAuthTag: string;
     encryptionVersion: number;
+    keyHash: string;
+    encryptedDataHash: string;
+    contentHash: string;
     txHash: string;
   }) {
     return prisma.$transaction(async (tx) => {
@@ -100,15 +106,15 @@ export const contentRegistrationRepository = {
           authorId: registration.authorId,
           description: registration.description,
           price: registration.price,
-
           encryptedData,
-          iv,
-          authTag,
+          dataIv,
+          keyAuthTag,
           encryptedDataKey,
-
+          keyIv,
           encryptionVersion,
           contentHash,
-
+          keyHash,
+          encryptedDataHash,
           status: "ACTIVE",
           txHash,
         },
@@ -161,14 +167,14 @@ export const contentRegistrationRepository = {
       }
 
       const updatedRegistration = await tx.contentRegistration.update({
-          where: {
-            id: registrationId,
-          },
-          data: {
-            status: "REJECTED",
-            rejectionReason: reason,
-          },
-        });
+        where: {
+          id: registrationId,
+        },
+        data: {
+          status: "REJECTED",
+          rejectionReason: reason,
+        },
+      });
 
       await tx.contentRegistrationSource.deleteMany({
         where: {
@@ -179,6 +185,8 @@ export const contentRegistrationRepository = {
       return updatedRegistration;
     });
   },
+
+  
 };
 
 export const contentRegistrationSourceRepository = {
@@ -191,6 +199,29 @@ export const contentRegistrationSourceRepository = {
   ) {
     return tx.contentRegistrationSource.create({
       data,
+    });
+  },
+
+  async findByRegistrationId(registrationId: number) {
+    return prisma.contentRegistrationSource.findUnique({
+      where: {
+        registrationId,
+      },
+      select: {
+        originalText: true,
+
+        registration: {
+          select: {
+            id: true,
+
+            author: {
+              select: {
+                pkOwn: true,
+              },
+            },
+          },
+        },
+      },
     });
   },
 }

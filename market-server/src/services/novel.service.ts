@@ -1,8 +1,7 @@
-import { contentRegistrationRepository, contentRegistrationSourceRepository } from "../repositories/content-registration.repository.js";
+import { contentRegistrationRepository,contentRegistrationSourceRepository } from "../repositories/content-registration.repository.js";
 import { contentListRepository } from "../repositories/content-list.repository.js";
 import { ApiError } from "../utils/errors.js";
 import { sendProofRequested } from "../kafka/producer.js";
-import { prisma } from "../lib/prisma.js";
 
 const MAX_TITLE_LENGTH = 50;
 const MAX_DESCRIPTION_LENGTH = 200;
@@ -99,30 +98,39 @@ export const novelService = {
   async completeRegistration({
     registrationId,
     encryptedData,
-    iv,
-    authTag,
+    dataIv,
     encryptedDataKey,
-    contentHash,
+    keyIv,
+    keyAuthTag,
     encryptionVersion,
-    txHash,
+    contentHash,
+    keyHash,
+    encryptedDataHash,
+    txHash
   }: {
     registrationId: number;
     encryptedData: string;
-    iv: string;
-    authTag: string;
+    dataIv: string;
+    keyIv: string
+    keyAuthTag: string;
     encryptedDataKey: string;
-    contentHash: string;
     encryptionVersion: number;
+    contentHash: string;
+    keyHash: string;
+    encryptedDataHash: string,
     txHash: string;
   }) {
     return contentRegistrationRepository.completeRegistration({
       registrationId,
       encryptedData,
-      iv,
-      authTag,
+      dataIv,
+      keyIv,
+      keyAuthTag,
       encryptedDataKey,
-      contentHash,
       encryptionVersion,
+      contentHash,
+      keyHash,
+      encryptedDataHash,
       txHash,
     });
   },
@@ -171,4 +179,17 @@ export const novelService = {
     };
   },
 
+  async getRegistrationSource(registrationId: number) {
+    const source = await contentRegistrationSourceRepository.findByRegistrationId(registrationId);
+
+    if (!source) {
+      throw new Error(`Content registration source not found: ${registrationId}`);
+    }
+
+    return {
+      registrationId: source.registration.id,
+      originalText: source.originalText,
+      authorPkOwn: source.registration.author.pkOwn,
+    };
+  },
 };

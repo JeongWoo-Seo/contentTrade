@@ -1,6 +1,6 @@
 type KafkaMessageType =
   | "PROOF_REQUESTED"
-  | ""
+  | "PROOF_FAILED"
 
 type ProofJobType =
   | "CONTENT_REGISTRATION"

@@ -1,5 +1,5 @@
 import { kafka } from "./kafka.js";
-import {MarketKafkaMessage} from "../types/message.js"
+import {MarketKafkaMessage} from "./types.js"
 
 const producer = kafka.producer();
 

@@ -1,84 +1,69 @@
-import { Kafka, EachMessagePayload } from "kafkajs";
-import type { JobFailedMessage } from "../types/message.js";
-import { novelService } from "../services/novel.service.js";
+import { Kafka, type Consumer } from "kafkajs";
+import os from "node:os";
+
+import { env } from "../config/env.js";
+import type { JobFailedMessage } from "./types.js";
+import { novelService } from "../services/novel.service.js"
 
 const kafka = new Kafka({
-    clientId: "market-server",
-    brokers: ["localhost:9092"],
+    clientId: `${env.kafkaServerIdPrefix}-consumer`,
+    brokers: env.kafkaBrokers,
 });
 
-const consumer = kafka.consumer({
-    groupId: "market-blockchain-result",
+const consumer: Consumer = kafka.consumer({
+    groupId: env.kafkaGroupId,
 });
 
-export async function connectFailedConsumer() {
+export async function connectProofFailedConsumer(): Promise<void> {
     await consumer.connect();
 
     await consumer.subscribe({
-        topic: "BLOCKCHAIN_FAILED",
+        topic: "PROOF_FAILED",
         fromBeginning: false,
     });
 
     await consumer.run({
-        eachMessage: async ({
-            message,
-        }: EachMessagePayload) => {
+        eachMessage: async ({ message }) => {
             if (!message.value) {
                 return;
             }
 
             try {
-                const data = JSON.parse( message.value.toString()) as JobFailedMessage;
+                const data = JSON.parse(message.value.toString()) as JobFailedMessage;
 
-                console.log(`[BLOCKCHAIN_FAILED] jobId=${data.jobId}`);
-
-                await handleBlockchainFailed(data);
+                await handleProofFailed(data);
             } catch (error) {
-                console.error("Failed to process BLOCKCHAIN_FAILED message:",error);
-                throw error;
+                console.error(
+                    "[market-server] failed to process PROOF_FAILED",
+                    error
+                );
             }
         },
     });
 
-    console.log(
-        "Blockchain failed consumer connected"
-    );
+    console.log("[market-server] Kafka PROOF_FAILED consumer connected");
 }
 
-async function handleBlockchainFailed(
+export async function disconnectProofFailedConsumer(): Promise<void> {
+    await consumer.disconnect();
+}
+
+async function handleProofFailed(
     message: JobFailedMessage
-) {
-    if (
-        message.proofType === "CONTENT_REGISTRATION"
-    ) {
-        if (message.registrationId == null) {
-            throw new Error(`registrationId is required: jobId=${message.jobId}`);
-        }
+): Promise<void> {
 
-        await novelService.failedRegistration({
-            registrationId: message.registrationId,
-            reason: message.reason,
-        });
-
-        console.log(`Registration ${message.registrationId} rejected`);
-        return;
+    if (message.proofType === "CONTENT_REGISTRATION") {
+        console.log(
+            `[market-server] proof failed ` +
+            `registrationId=${message.registrationId}` +
+            `jobId=${message.jobId}, ` +
+            `failedStage=${message.failedStage}, ` +
+            `reason=${message.reason}`
+        );
+        await novelService.failedRegistration({ registrationId: message.registrationId, reason: message.reason })
     }
-
-    if (message.proofType === "TRADE_APPROVAL") {
-        if (message.purchaseId == null) {
-            throw new Error(`purchaseId is required: jobId=${message.jobId}`);
-        }
-
-        // TODO:
-        // 구매 실패 처리
-        // await purchaseRepository.failedPurchase(...)
-
-        console.log(`Purchase ${message.purchaseId} failed`);
-
-        return;
-    }
-
-    throw new Error(
-        "Unknown blockchain failed message"
-    );
+    //
+    // if (message.proofType === "TRADE_APPROVAL") {
+    //   await buyHistoryService.markFailed(...);
+    // }
 }

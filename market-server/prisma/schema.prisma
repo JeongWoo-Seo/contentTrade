@@ -138,18 +138,11 @@ model ContentList {
   // ----------------------------------------------------------
   // 암호화된 소설 데이터
   // ----------------------------------------------------------
-
-  // AES-256-GCM으로 암호화된 소설
   // Base64 문자열
   encryptedData String @map("encrypted_data") @db.Text
 
-  // AES-GCM IV / Nonce
   // 12 bytes → Base64
-  iv String @db.VarChar(255)
-
-  // AES-GCM Authentication Tag
-  // 16 bytes → Base64
-  authTag String @map("auth_tag") @db.VarChar(255)
+  dataIv String @map("data_iv") @db.VarChar(255)
 
   // ----------------------------------------------------------
   // Data Key
@@ -158,6 +151,8 @@ model ContentList {
   // 소설 암호화에 사용된 AES Data Key를
   // MASTER_KEY로 암호화한 값
   encryptedDataKey String @map("encrypted_data_key") @db.Text
+  keyIv String @db.VarChar(255)
+  keyAuthTag String @map("key_auth_tag") @db.VarChar(255)
 
   // ----------------------------------------------------------
   // 암호화 버전
@@ -169,9 +164,8 @@ model ContentList {
   // ----------------------------------------------------------
   // Content 검증
   // ----------------------------------------------------------
-
-  // 원문 검증용 SHA-256 hash
-  // SHA-256을 HEX로 저장하면 64자
+  keyHash String  @map("key_hash") @db.VarChar(64)
+  encryptedDataHash String  @map("encrypted_data_hash") @db.VarChar(64)
   contentHash String @map("content_hash") @db.VarChar(64)
 
   // ----------------------------------------------------------
