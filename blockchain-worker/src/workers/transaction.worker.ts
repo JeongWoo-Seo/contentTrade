@@ -1,9 +1,8 @@
 import { simulateAndSubmitContentRegistration, simulateAndSubmitTradeApproval } from "../blockchain/blockchain.service.js";
 import { contentRegistrationTransactionRepository } from "../repositories/content-registration.repository.js";
 import { tradeApprovalTransactionRepository } from "../repositories/trade-approval.repository.js";
-import { sendBlockchainFailed } from "../kafka/producer.js";
 import { env } from "../config/env.js";
-import type { JobFailedMessage } from "../kafka/types.js";
+
 
 export class TransactionWorker {
   private running = false;
@@ -144,72 +143,5 @@ export class TransactionWorker {
 
       return;
     }
-  }
-
-  /**
-   * 소설 등록 실패 처리
-   */
-  private async handleContentRegistrationFailure(
-    job: Awaited<ReturnType<typeof contentRegistrationTransactionRepository.findPending>>,
-    reason: string,
-  ): Promise<void> {
-    if (!job) {
-      return;
-    }
-
-    await contentRegistrationTransactionRepository.delete(job.id);
-
-    await this.reportFailure({
-      jobId: job.jobId,
-      requestedAt: job.createdAt.toISOString(),
-      failedStage: "BLOCKCHAIN",
-      reason,
-      proofType: "CONTENT_REGISTRATION",
-      registrationId: job.registrationId,
-    });
-  }
-
-  /**
-   * 거래 승인 실패 처리
-   */
-  private async handleTradeApprovalFailure(
-    job: Awaited<ReturnType<typeof tradeApprovalTransactionRepository.findPending>>,
-    reason: string,
-  ): Promise<void> {
-    if (!job) {
-      return;
-    }
-
-    await tradeApprovalTransactionRepository.delete(job.id);
-
-    await this.reportFailure({
-      jobId: job.jobId,
-      requestedAt: job.createdAt.toISOString(),
-      failedStage: "BLOCKCHAIN",
-      reason,
-      proofType: "TRADE_APPROVAL",
-      purchaseId: job.purchaseId,
-    });
-  }
-
-  /**
-   * Blockchain 실패 이벤트 Kafka 전송
-   */
-  private async reportFailure(
-    message: JobFailedMessage,
-  ): Promise<void> {
-    try {
-      await sendBlockchainFailed(message);
-    } catch (error) {
-      console.error("[blockchain-worker] failed to send Kafka failure message:", error);
-    }
-  }
-
-  private getErrorMessage(error: unknown): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-
-    return String(error);
   }
 }

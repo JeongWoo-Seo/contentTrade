@@ -1,11 +1,7 @@
-import { Market } from "@content-trade/grpc-contract";
 import { checkContentRegistrationReceipt, checkTradeApprovalReceipt } from "../blockchain/blockchain.service.js";
 import { contentRegistrationTransactionRepository } from "../repositories/content-registration.repository.js";
 import { tradeApprovalTransactionRepository } from "../repositories/trade-approval.repository.js";
-import { completeContentRegistration } from "../grpc/market.client.js";
-import { sendBlockchainFailed } from "../kafka/producer.js";
 import { env } from "../config/env.js";
-import type { JobFailedMessage } from "../kafka/types.js";
 
 export class ReceiptWorker {
   private running = false;
@@ -61,30 +57,8 @@ export class ReceiptWorker {
 
       await contentRegistrationTransactionRepository.markConfirmed(job.id);
 
-      /**
-       * Market에 완료 결과 전달
-       */
-      await this.reportContentRegistrationSuccess({
-        jobId: job.jobId,
-        registrationId: job.registrationId,
-
-        encryptedData: job.encryptedData,
-        dataIv: job.dataIv,
-
-        encryptedDataKey: job.encryptedDataKey,
-        keyIv: job.keyIv,
-        keyAuthTag: job.keyAuthTag,
-
-        encryptionVersion: job.encryptionVersion,
-
-        keyHash: job.keyHash,
-        encryptedDataHash: job.encryptedDataHash,
-        contentHash: job.contentHash,
-
-        txHash: job.txHash!,
-      });
     } catch (error) {
-      console.error(`[blockchain-worker] content registration receipt check failed jobId=${job.jobId}:`,error);
+      console.error(`[blockchain-worker] content registration receipt check failed jobId=${job.jobId}:`, error);
     }
   }
 
@@ -115,39 +89,7 @@ export class ReceiptWorker {
 
       console.log(`[blockchain-worker] trade approval CONFIRMED jobId=${job.jobId}`);
     } catch (error) {
-      console.error(`[blockchain-worker] trade approval receipt check failed jobId=${job.jobId}:`,error);
-    }
-  }
-
-  /**
-   * Market에 소설 등록 완료 결과 전달
-   */
-  private async reportContentRegistrationSuccess(
-    request: Market.CompleteContentRegistrationRequest,
-  ): Promise<void> {
-    try {
-      await completeContentRegistration(request);
-
-      console.log(
-        `[blockchain-worker] market completion succeeded ` +
-        `jobId=${request.jobId} ` +
-        `registrationId=${request.registrationId}`,
-      );
-    } catch (error) {
-      console.error("[blockchain-worker] failed to complete content registration:",error);
-    }
-  }
-
-  /**
-   * Blockchain 실패 이벤트 Kafka 전송
-   */
-  private async reportFailure(
-    message: JobFailedMessage,
-  ): Promise<void> {
-    try {
-      await sendBlockchainFailed(message);
-    } catch (error) {
-      console.error("[blockchain-worker] failed to send Kafka failure message:",error);
+      console.error(`[blockchain-worker] trade approval receipt check failed jobId=${job.jobId}:`, error);
     }
   }
 }

@@ -23,6 +23,20 @@ export const contentRegistrationTransactionRepository = {
     });
   },
 
+  async findConfirmed() {
+    return prisma.contentRegistrationTransaction.findFirst({
+      where: { status: "CONFIRMED" },
+      orderBy: { createdAt: "asc" },
+    });
+  },
+
+  async findFailed() {
+    return prisma.contentRegistrationTransaction.findFirst({
+      where: { status: "FAILED" },
+      orderBy: { createdAt: "asc" },
+    });
+  },
+
   async findByJobId(jobId: string) {
     return prisma.contentRegistrationTransaction.findUnique({
       where: {
@@ -110,9 +124,9 @@ export const contentRegistrationTransactionRepository = {
     });
   },
 
-  async delete(id: number) { 
-    return prisma.contentRegistrationTransaction.delete({ 
-      where: { id, }, 
-    }); 
+  async delete(id: number) {
+    return prisma.contentRegistrationTransaction.delete({
+      where: { id, },
+    });
   },
 };

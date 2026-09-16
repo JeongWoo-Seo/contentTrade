@@ -23,6 +23,20 @@ export const tradeApprovalTransactionRepository = {
     });
   },
 
+  async findConfirmed() {
+    return prisma.tradeApprovalTransaction.findFirst({
+      where: { status: "CONFIRMED" },
+      orderBy: { createdAt: "asc" },
+    });
+  },
+
+  async findFailed() {
+    return prisma.tradeApprovalTransaction.findFirst({
+      where: { status: "FAILED" },
+      orderBy: { createdAt: "asc" },
+    });
+  },
+
   async findByJobId(jobId: string) {
     return prisma.tradeApprovalTransaction.findUnique({
       where: {
@@ -88,9 +102,9 @@ export const tradeApprovalTransactionRepository = {
     });
   },
 
-  async delete(id: number) { 
-    return prisma.tradeApprovalTransaction.delete({ 
-      where: { id, }, 
-    }); 
+  async delete(id: number) {
+    return prisma.tradeApprovalTransaction.delete({
+      where: { id, },
+    });
   },
 };

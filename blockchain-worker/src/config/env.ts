@@ -19,4 +19,6 @@ export const env = {
   // Worker polling intervals (ms)
   transactionWorkerIntervalMs: Number(process.env.TRANSACTION_WORKER_INTERVAL_MS) || 1000,
   receiptWorkerIntervalMs: Number(process.env.RECEIPT_WORKER_INTERVAL_MS) || 5000,
+  resultSendWorkerIntervalMs: Number(process.env.RESULT_SEND_WORKER_INTERVAL_MS) || 5000,
+  
 };
