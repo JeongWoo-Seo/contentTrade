@@ -86,7 +86,16 @@ export const contentRegistrationRepository = {
     txHash: string;
   }) {
     return prisma.$transaction(async (tx) => {
-      // 1. 등록 요청 조회
+      // 1. registration row lock
+      await tx.$queryRaw(
+        Prisma.sql`
+      SELECT id
+      FROM content_registrations
+      WHERE id = ${registrationId}
+      FOR UPDATE`
+      );
+
+      // 2. 등록 요청 조회
       const registration = await tx.contentRegistration.findUnique({
         where: {
           id: registrationId,
@@ -99,7 +108,30 @@ export const contentRegistrationRepository = {
         );
       }
 
-      // 2. ContentList 생성
+      // 이미 완료된 등록이면 기존 결과 반환
+      if (registration.status === "APPROVED" && registration.contentId !== null) {
+        const content = await tx.contentList.findUnique({
+          where: {
+            id: registration.contentId,
+          },
+        });
+
+        if (!content) {
+          throw new Error(`ContentList not found: ${registration.contentId}`);
+        }
+
+        return {
+          registration,
+          content,
+        };
+      }
+
+      //이미 컨텐츠 등록이 거절된 경우
+      if (registration.status === "REJECTED") {
+        throw new Error(`ContentRegistration already rejected: ${registrationId}`);
+      }
+
+      // 3. ContentList 생성
       const content = await tx.contentList.create({
         data: {
           title: registration.title,
@@ -120,7 +152,7 @@ export const contentRegistrationRepository = {
         },
       });
 
-      // 3. ContentRegistration 업데이트
+      // 4. ContentRegistration 업데이트
       const updatedRegistration = await tx.contentRegistration.update({
         where: {
           id: registrationId,
@@ -131,7 +163,7 @@ export const contentRegistrationRepository = {
         },
       });
 
-      //4. contentRegistrationSource 삭제
+      //5. contentRegistrationSource 삭제
       await tx.contentRegistrationSource.delete({
         where: {
           registrationId,
@@ -154,6 +186,17 @@ export const contentRegistrationRepository = {
   }
   ) {
     return prisma.$transaction(async (tx) => {
+      //registration row lock
+      await tx.$queryRaw(
+        Prisma.sql`
+        SELECT id
+        FROM content_registrations
+        WHERE id = ${registrationId}
+        FOR UPDATE
+      `
+      );
+
+      //컨텐츠 등록 조회
       const registration = await tx.contentRegistration.findUnique({
         where: {
           id: registrationId,
@@ -166,6 +209,12 @@ export const contentRegistrationRepository = {
         );
       }
 
+      // 이미 완료된 작업이면 아무 것도 하지 않음
+      if (registration.status === "APPROVED" || registration.status === "REJECTED") {
+        return registration;
+      }
+
+      //등록 업데이트
       const updatedRegistration = await tx.contentRegistration.update({
         where: {
           id: registrationId,
@@ -176,6 +225,7 @@ export const contentRegistrationRepository = {
         },
       });
 
+      // source 삭제
       await tx.contentRegistrationSource.deleteMany({
         where: {
           registrationId,
@@ -185,8 +235,6 @@ export const contentRegistrationRepository = {
       return updatedRegistration;
     });
   },
-
-  
 };
 
 export const contentRegistrationSourceRepository = {

@@ -23,14 +23,6 @@ export function createGrpcServer() {
                     );
 
                     const registration = await novelService.getRegistrationSource(registration_id);
-
-                    if (!registration) {
-                        return callback({
-                            code: grpc.status.NOT_FOUND,
-                            message: "Content registration not found",
-                        });
-                    }
-
                     if (!registration) {
                         return callback({
                             code: grpc.status.FAILED_PRECONDITION,
