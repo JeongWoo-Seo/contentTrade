@@ -45,46 +45,49 @@ export class TransactionWorker {
    */
   private async processContentRegistration(): Promise<void> {
     const job = await contentRegistrationTransactionRepository.findPending();
+
     if (!job) {
       return;
     }
-
-    console.log(`[blockchain-worker] processing content registration jobId=${job.jobId}`);
 
     try {
       const result = await simulateAndSubmitContentRegistration({
         jobId: job.jobId,
         proof: job.proof,
-        publicSignals: JSON.parse(
-          job.publicSignals,
-        ) as string[],
+        publicSignals: JSON.parse(job.publicSignals) as string[],
       });
 
-      if (result.success && result.txHash) {
+      if (result.result == "SUCCESS") {
         await contentRegistrationTransactionRepository.markSubmitted(
           job.id,
           result.txHash,
         );
 
-        console.log(`[blockchain-worker] content registration SUBMITTED jobId=${job.jobId}`);
+        return;
+      }
+
+      if (result.result === "PROOF_INVALID") {
+        await contentRegistrationTransactionRepository.markFailed(
+          job.id,
+          result.reason,
+        );
 
         return;
       }
 
-      const reason = result.reason ?? "transaction simulation failed";
-
-      await this.handleContentRegistrationFailure(
-        job,
-        reason,
-      );
+      if (result.result === "RPC_ERROR") {
+        console.error(
+          `[blockchain-worker] blockchain communication failed ` +
+          `jobId=${job.jobId}: ${result.reason}`,
+        );
+        return
+      }
     } catch (error) {
-      const reason = this.getErrorMessage(error);
-
-      console.error(`[blockchain-worker] content registration failed jobId=${job.jobId}:`, error);
-
-      await this.handleContentRegistrationFailure(
-        job,
-        reason,
+      // 예상하지 못한 RPC/network 오류도 재시도
+      console.error(
+        `[blockchain-worker] unexpected blockchain error ` +
+        `jobId=${job.jobId}:`,
+        error,
       );
     }
   }
@@ -93,52 +96,53 @@ export class TransactionWorker {
    * 거래 승인 블록체인 작업 처리
    */
   private async processTradeApproval(): Promise<void> {
-    const job =
-      await tradeApprovalTransactionRepository.findPending();
-
+    const job = await tradeApprovalTransactionRepository.findPending();
     if (!job) {
       return;
     }
 
-    console.log(
-      `[blockchain-worker] processing trade approval jobId=${job.jobId}`,
-    );
+    console.log(`[blockchain-worker] processing trade approval jobId=${job.jobId}`);
 
     try {
       const result = await simulateAndSubmitTradeApproval({
         jobId: job.jobId,
         proof: job.proof,
-        publicSignals: JSON.parse(
-          job.publicSignals,
-        ) as string[],
+        publicSignals: JSON.parse(job.publicSignals) as string[],
       });
 
-      if (result.success && result.txHash) {
+      // 블록체인 TX 제출 성공
+      if (result.result === "SUCCESS") {
         await tradeApprovalTransactionRepository.markSubmitted(
           job.id,
           result.txHash,
         );
 
-        console.log(`[blockchain-worker] trade approval SUBMITTED jobId=${job.jobId}`);
-
+        console.log(`[blockchain-worker] trade approval SUBMITTED jobId=${job.jobId}`)
         return;
       }
 
-      const reason = result.reason ?? "transaction simulation failed";
+      // Proof 검증 실패
+      if (result.result === "PROOF_INVALID") {
+        await tradeApprovalTransactionRepository.markFailed(
+          job.id,
+          result.reason,
+        );
 
-      await this.handleTradeApprovalFailure(
-        job,
-        reason,
-      );
+        console.error(`[blockchain-worker] trade approval FAILED jobId=${job.jobId}: ${result.reason}`);
+        return;
+      }
+
+      // RPC / 네트워크 오류
+      // 상태를 변경하지 않고 다음 polling에서 재시도
+      if (result.result === "RPC_ERROR") {
+        console.error(`[blockchain-worker] trade approval RPC error jobId=${job.jobId}: ${result.reason}`);
+        return;
+      }
     } catch (error) {
-      const reason = this.getErrorMessage(error);
+      // 예상하지 못한 오류도 일단 DB 상태를 변경하지 않고 재시도
+      console.error(`[blockchain-worker] unexpected trade approval error jobId=${job.jobId}:`,error);
 
-      console.error(`[blockchain-worker] trade approval failed jobId=${job.jobId}:`, error);
-
-      await this.handleTradeApprovalFailure(
-        job,
-        reason,
-      );
+      return;
     }
   }
 
@@ -153,10 +157,7 @@ export class TransactionWorker {
       return;
     }
 
-    await contentRegistrationTransactionRepository.markFailed(
-      job.id,
-      reason,
-    );
+    await contentRegistrationTransactionRepository.delete(job.id);
 
     await this.reportFailure({
       jobId: job.jobId,
@@ -179,10 +180,7 @@ export class TransactionWorker {
       return;
     }
 
-    await tradeApprovalTransactionRepository.markFailed(
-      job.id,
-      reason,
-    );
+    await tradeApprovalTransactionRepository.delete(job.id);
 
     await this.reportFailure({
       jobId: job.jobId,
@@ -203,7 +201,7 @@ export class TransactionWorker {
     try {
       await sendBlockchainFailed(message);
     } catch (error) {
-      console.error("[blockchain-worker] failed to send Kafka failure message:",error);
+      console.error("[blockchain-worker] failed to send Kafka failure message:", error);
     }
   }
 

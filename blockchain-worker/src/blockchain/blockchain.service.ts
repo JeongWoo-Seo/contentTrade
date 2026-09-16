@@ -1,16 +1,29 @@
 import { createHash } from "node:crypto";
 
+export type TransactionSubmissionResultType =
+  | "SUCCESS"
+  | "RPC_ERROR"
+  | "PROOF_INVALID";
+
 export interface TransactionSubmissionInput {
   jobId: string;
   proof: string; // snarkjs Groth16 Proof (JSON string)
   publicSignals: string[];
 }
 
-export interface TransactionSubmissionResult {
-  success: boolean;
-  txHash?: string;
-  reason?: string;
-}
+export type TransactionSubmissionResult =
+  | {
+      result: "SUCCESS";
+      txHash: string;
+    }
+  | {
+      result: "RPC_ERROR";
+      reason: string;
+    }
+  | {
+      result: "PROOF_INVALID";
+      reason: string;
+    };
 
 export interface ReceiptCheckResult {
   confirmed: boolean;
@@ -35,7 +48,7 @@ export async function simulateAndSubmitContentRegistration(
   //       2) 실제 블록체인 전송 (컨트랙트 호출 → txHash)
   console.log(`[blockchain] simulateAndSubmitContentRegistration jobId=${input.jobId}`);
 
-  return { success: true, txHash: fakeTxHash(input.jobId) };
+  return { result: "SUCCESS", txHash: fakeTxHash(input.jobId) };
 }
 
 /**
@@ -48,7 +61,7 @@ export async function simulateAndSubmitTradeApproval(
   // TODO: 1) EVM 시뮬레이션 2) 실제 블록체인 전송
   console.log(`[blockchain] simulateAndSubmitTradeApproval jobId=${input.jobId}`);
 
-  return { success: true, txHash: fakeTxHash(input.jobId) };
+  return { result: "SUCCESS", txHash: fakeTxHash(input.jobId) };
 }
 
 /**
