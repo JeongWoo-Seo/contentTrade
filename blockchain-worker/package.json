@@ -11,15 +11,22 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
+    "@content-trade/grpc-contract": "file:../packages/grpc-contract",
+    "@grpc/grpc-js": "^1.14.4",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
     "dotenv": "^17.4.2",
     "kafkajs": "^2.2.4",
+    "pg": "^8.23.0",
+    "prisma": "^7.10.0",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "viem": "^2.56.3"
   },
   "devDependencies": {
-    "@types/node": "^26.5.0"
+    "@types/node": "^26.5.0",
+    "@types/pg": "^8.23.1"
   }
 }

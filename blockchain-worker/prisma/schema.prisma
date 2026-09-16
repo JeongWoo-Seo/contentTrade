@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==========================================================
+// 공통 상태
+// ==========================================================
+
+enum TransactionJobStatus {
+  PENDING
+  SUBMITTED
+  CONFIRMED
+  FAILED
+}
+
+
+// ==========================================================
+// 소설 등록 Blockchain 작업
+// ==========================================================
+
+model ContentRegistrationTransaction {
+
+  id Int @id @default(autoincrement())
+
+  // 작업 ID
+  jobId String @unique @map("job_id") @db.VarChar(100)
+
+  // 소설 등록 ID
+  registrationId Int @map("registration_id")
+
+  // ZK Proof
+  proof String @db.Text
+
+  // ZK circuit public inputs
+  publicSignals String @map("public_signals") @db.Text
+
+  // ----------------------------------------------------------
+  // 암호화된 소설 데이터
+  // ----------------------------------------------------------
+
+  encryptedData String @map("encrypted_data") @db.Text
+
+  dataIv String @map("data_iv") @db.VarChar(255)
+
+  encryptedDataKey String @map("encrypted_data_key") @db.Text
+
+  keyIv String @map("key_iv") @db.VarChar(255)
+
+  keyAuthTag String @map("key_auth_tag") @db.VarChar(255)
+
+  encryptionVersion Int @map("encryption_version")
+
+  // ----------------------------------------------------------
+  // Content 검증
+  // ----------------------------------------------------------
+
+  keyHash String @map("key_hash") @db.VarChar(255)
+
+  encryptedDataHash String @map("encrypted_data_hash") @db.VarChar(255)
+
+  contentHash String @map("content_hash") @db.VarChar(255)
+
+  // ----------------------------------------------------------
+  // Blockchain
+  // ----------------------------------------------------------
+
+  txHash String? @unique @map("tx_hash") @db.VarChar(255)
+
+  status TransactionJobStatus @default(PENDING)
+
+  submittedAt DateTime? @map("submitted_at")
+
+  confirmedAt DateTime? @map("confirmed_at")
+
+  failureReason String? @map("failure_reason") @db.Text
+
+  retryCount Int @default(0) @map("retry_count")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+
+  @@index([status])
+
+  @@index([registrationId])
+
+  @@index([createdAt])
+
+  @@index([status, createdAt])
+
+  @@map("content_registration_transactions")
+}
+
+
+// ==========================================================
+// 거래 승인 Blockchain 작업
+// ==========================================================
+
+model TradeApprovalTransaction {
+
+  id Int @id @default(autoincrement())
+
+  // 작업 ID
+  jobId String @unique @map("job_id") @db.VarChar(100)
+
+  // 구매 ID
+  purchaseId Int @map("purchase_id")
+
+  // ZK Proof
+  proof String @db.Text
+
+  // ZK circuit public inputs
+  publicSignals String @map("public_signals") @db.Text
+
+  status TransactionJobStatus @default(PENDING)
+
+  txHash String? @unique @map("tx_hash") @db.VarChar(255)
+
+  submittedAt DateTime? @map("submitted_at")
+
+  confirmedAt DateTime? @map("confirmed_at")
+
+  failureReason String? @map("failure_reason") @db.Text
+
+  retryCount Int @default(0) @map("retry_count")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+
+  @@index([purchaseId])
+
+  @@index([createdAt])
+
+  @@index([status, createdAt])
+
+  @@map("trade_approval_transactions")
+}
