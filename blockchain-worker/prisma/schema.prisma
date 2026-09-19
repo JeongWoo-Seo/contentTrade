@@ -12,6 +12,7 @@ datasource db {
 
 enum TransactionJobStatus {
   PENDING
+  PROCESSING
   SUBMITTED
   CONFIRMED
   FAILED
@@ -70,15 +71,19 @@ model ContentRegistrationTransaction {
 
   txHash String? @unique @map("tx_hash") @db.VarChar(255)
 
+  nonce Int?
+
   status TransactionJobStatus @default(PENDING)
+
+  failureReason String? @map("failure_reason") @db.Text
+
+  retryCount Int @default(0) @map("retry_count")
 
   submittedAt DateTime? @map("submitted_at")
 
   confirmedAt DateTime? @map("confirmed_at")
 
-  failureReason String? @map("failure_reason") @db.Text
-
-  retryCount Int @default(0) @map("retry_count")
+  processingStartedAt DateTime? @map("processing_started_at")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -121,6 +126,10 @@ model TradeApprovalTransaction {
 
   txHash String? @unique @map("tx_hash") @db.VarChar(255)
 
+  nonce Int?
+
+  processingStartedAt DateTime? @map("processing_started_at")
+
   submittedAt DateTime? @map("submitted_at")
 
   confirmedAt DateTime? @map("confirmed_at")
@@ -142,4 +151,67 @@ model TradeApprovalTransaction {
   @@index([status, createdAt])
 
   @@map("trade_approval_transactions")
+}
+
+// ==========================================================
+// Outbox
+// ==========================================================
+
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+enum OutboxJobType {
+  CONTENT_REGISTRATION
+  TRADE_APPROVAL
+}
+
+enum OutboxEventType {
+  TRANSACTION_REQUESTED
+  RECEIPT_CHECK_REQUESTED
+  TRANSACTION_COMPLETED
+  TRANSACTION_FAILED
+}
+
+model TransactionOutbox {
+
+  id Int @id @default(autoincrement())
+
+  // 원본 Blockchain 작업 ID
+  jobId String @map("job_id") @db.VarChar(100)
+
+  // 작업 종류
+  jobType OutboxJobType @map("job_type")
+
+  // 다음 단계에서 수행할 작업
+  eventType OutboxEventType @map("event_type")
+
+  // Redis/MQ 전달 상태
+  status OutboxStatus @default(PENDING)
+
+  // Redis publish 완료 시각
+  publishedAt DateTime? @map("published_at")
+
+  // 재시도 횟수
+  retryCount Int @default(0) @map("retry_count")
+
+  // 마지막 실패 원인
+  lastError String? @map("last_error") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+
+  @@unique([jobId, eventType])
+
+  @@index([status, createdAt])
+
+  @@index([jobId])
+
+  @@index([jobType, status])
+
+  @@map("transaction_outbox")
 }

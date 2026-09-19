@@ -1,8 +1,14 @@
--- DropTable
-DROP TABLE "transaction_jobs";
+-- CreateEnum
+CREATE TYPE "TransactionJobStatus" AS ENUM ('PENDING', 'PROCESSING', 'CONFIRMED', 'FAILED');
 
--- DropEnum
-DROP TYPE "ProofType";
+-- CreateEnum
+CREATE TYPE "OutboxStatus" AS ENUM ('PENDING', 'PUBLISHED', 'FAILED');
+
+-- CreateEnum
+CREATE TYPE "OutboxJobType" AS ENUM ('CONTENT_REGISTRATION', 'TRADE_APPROVAL');
+
+-- CreateEnum
+CREATE TYPE "OutboxEventType" AS ENUM ('TRANSACTION_REQUESTED', 'RECEIPT_CHECK_REQUESTED', 'TRANSACTION_COMPLETED', 'TRANSACTION_FAILED');
 
 -- CreateTable
 CREATE TABLE "content_registration_transactions" (
@@ -51,6 +57,22 @@ CREATE TABLE "trade_approval_transactions" (
     CONSTRAINT "trade_approval_transactions_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "transaction_outbox" (
+    "id" SERIAL NOT NULL,
+    "job_id" VARCHAR(100) NOT NULL,
+    "job_type" "OutboxJobType" NOT NULL,
+    "event_type" "OutboxEventType" NOT NULL,
+    "status" "OutboxStatus" NOT NULL DEFAULT 'PENDING',
+    "published_at" TIMESTAMP(3),
+    "retry_count" INTEGER NOT NULL DEFAULT 0,
+    "last_error" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "transaction_outbox_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "content_registration_transactions_job_id_key" ON "content_registration_transactions"("job_id");
 
@@ -87,3 +109,14 @@ CREATE INDEX "trade_approval_transactions_created_at_idx" ON "trade_approval_tra
 -- CreateIndex
 CREATE INDEX "trade_approval_transactions_status_created_at_idx" ON "trade_approval_transactions"("status", "created_at");
 
+-- CreateIndex
+CREATE INDEX "transaction_outbox_status_created_at_idx" ON "transaction_outbox"("status", "created_at");
+
+-- CreateIndex
+CREATE INDEX "transaction_outbox_job_id_idx" ON "transaction_outbox"("job_id");
+
+-- CreateIndex
+CREATE INDEX "transaction_outbox_job_type_status_idx" ON "transaction_outbox"("job_type", "status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "transaction_outbox_job_id_event_type_key" ON "transaction_outbox"("job_id", "event_type");

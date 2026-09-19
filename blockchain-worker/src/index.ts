@@ -2,69 +2,72 @@ import "dotenv/config";
 import { connectProducer, disconnectProducer } from "./kafka/producer.js";
 import { closeMarketClient } from "./grpc/market.client.js";
 import { prisma } from "./lib/prisma.js";
-import { env } from "./config/env.js";
-import { startGrpcServer } from "./grpc/server.js";
+import { connectRedis, disconnectRedis } from "./redis/client.js";
+import { ensureConsumerGroups } from "./redis/streams.js";
+import { OutboxWorker } from "./workers/outbox.worker.js";
 import { TransactionWorker } from "./workers/transaction.worker.js";
 import { ReceiptWorker } from "./workers/receipt.worker.js";
 import { ResultSendWorker } from "./workers/resultSend.worker.js";
+import { RecoveryWorker } from "./workers/recovery.worker.js";
 
 async function main(): Promise<void> {
-    // Kafka producer (실패 메시지 발행용)
-    await connectProducer();
+  // Redis (Streams / Consumer Group)
+  await connectRedis();
+  await ensureConsumerGroups();
 
-    // gRPC server (proof-worker가 proof를 제출)
-    const server = await startGrpcServer(env.port);
-    console.log(`[blockchain-worker] gRPC server started on port ${env.port}`);
+  // Kafka producer (실패 메시지 발행용)
+  await connectProducer();
 
-    // Workers (PENDING/SUBMITTED 폴링)
-    const transactionWorker = new TransactionWorker();
-    const receiptWorker = new ReceiptWorker();
-    const resultSendWorker = new ResultSendWorker();
+  // Workers
+  const workers = [
+    new OutboxWorker(),
+    new TransactionWorker(),
+    new ReceiptWorker(),
+    new ResultSendWorker(),
+    new RecoveryWorker(),
+  ];
 
-    transactionWorker.start().catch((error) => {
-        console.error("[blockchain-worker] transaction worker crashed:", error);
+  for (const worker of workers) {
+    worker.start().catch((error) => {
+      console.error("[blockchain-worker] worker crashed:", error);
     });
+  }
 
-    receiptWorker.start().catch((error) => {
-        console.error("[blockchain-worker] receipt worker crashed:", error);
-    });
+  console.log("[blockchain-worker] all workers started");
 
-    resultSendWorker.start().catch((error) => {
-        console.error("[blockchain-worker] result send worker crashed:", error);
-    });
+  // graceful shutdown
+  let shuttingDown = false;
+  const shutdown = async (signal: string): Promise<void> => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
 
-    // graceful shutdown
-    let shuttingDown = false;
-    const shutdown = async (signal: string): Promise<void> => {
-        if (shuttingDown) {
-            return;
-        }
-        shuttingDown = true;
+    console.log(`[blockchain-worker] received ${signal}, shutting down...`);
+    try {
+      for (const worker of workers) {
+        worker.stop();
+      }
 
-        console.log(`[blockchain-worker] received ${signal}, shutting down...`);
-        try {
-            transactionWorker.stop();
-            receiptWorker.stop();
-            resultSendWorker.stop();
+      // Redis를 먼저 닫아 blocking XREADGROUP을 해제한다.
+      await disconnectRedis();
+      await disconnectProducer();//kafka
+      closeMarketClient();//grpc
+      await prisma.$disconnect();//db
 
-            await new Promise<void>((resolve) => server.tryShutdown(() => resolve()));
-            await disconnectProducer();
-            closeMarketClient();
-            await prisma.$disconnect();
+      console.log("[blockchain-worker] shutdown complete");
+      process.exit(0);
+    } catch (error) {
+      console.error("[blockchain-worker] shutdown failed:", error);
+      process.exit(1);
+    }
+  };
 
-            console.log("[blockchain-worker] shutdown complete");
-            process.exit(0);
-        } catch (error) {
-            console.error("[blockchain-worker] shutdown failed:", error);
-            process.exit(1);
-        }
-    };
-
-    process.on("SIGINT", () => void shutdown("SIGINT"));
-    process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
 main().catch((error) => {
-    console.error("[blockchain-worker] failed:", error);
-    process.exit(1);
+  console.error("[blockchain-worker] failed:", error);
+  process.exit(1);
 });

@@ -1,87 +1,121 @@
-import { createHash } from "node:crypto";
+import { ethers } from "ethers";
+import {
+  provider,
+  wallet,
+  contentTradeContract,
+} from "./blockchian.js";
 
-export type TransactionSubmissionResultType =
-  | "SUCCESS"
-  | "RPC_ERROR"
-  | "PROOF_INVALID";
+export type TransactionInput = {
+  to: string;
+  data: string;
+  nonce: number;
+  gasLimit?: bigint;
+  maxFeePerGas?: bigint;
+  maxPriorityFeePerGas?: bigint;
+  value?: bigint;
+};
 
-export interface TransactionSubmissionInput {
-  jobId: string;
-  proof: string; // snarkjs Groth16 Proof (JSON string)
-  publicSignals: string[];
+export type SignedTransaction = {
+  signedTx: string;
+  txHash: string;
+};
+
+export type SubmittedTransaction = {
+  txHash: string;
+  nonce: number;
+};
+
+export async function getPendingNonce(): Promise<number> {
+  return provider.getTransactionCount(
+    wallet.address,
+    "pending",
+  );
 }
 
-export type TransactionSubmissionResult =
-  | {
-      result: "SUCCESS";
-      txHash: string;
-    }
-  | {
-      result: "RPC_ERROR";
-      reason: string;
-    }
-  | {
-      result: "PROOF_INVALID";
-      reason: string;
-    };
-
-export interface ReceiptCheckResult {
-  confirmed: boolean;
+export async function signTransaction(
+  transaction: TransactionInput,
+): Promise<SignedTransaction> {
+  const signedTx = await wallet.signTransaction(transaction);
+  const txHash = ethers.keccak256(signedTx);
+  return {
+    signedTx,
+    txHash,
+  };
 }
 
-/**
- * stub 용 가짜 txHash. 실제 구현에서는 블록체인 tx hash 가 반환된다.
- * jobId 기반 고유값으로 만들어 UNIQUE 제약을 위반하지 않는다.
- */
-function fakeTxHash(jobId: string): string {
-  return "0x" + createHash("sha256").update(jobId).digest("hex");
+export async function broadcastTransaction(
+  signedTx: string,
+): Promise<void> {
+  await provider.broadcastTransaction(signedTx);
 }
 
-/**
- * 컨텐츠 등록 트랜잭션 시뮬레이션 + 전송.
- * 실제 EVM 시뮬레이션과 블록체인 전송은 아직 구현하지 않는다.
- */
-export async function simulateAndSubmitContentRegistration(
-  input: TransactionSubmissionInput,
-): Promise<TransactionSubmissionResult> {
-  // TODO: 1) EVM 시뮬레이션 (viem: estimateGas 등)
-  //       2) 실제 블록체인 전송 (컨트랙트 호출 → txHash)
-  console.log(`[blockchain] simulateAndSubmitContentRegistration jobId=${input.jobId}`);
-
-  return { result: "SUCCESS", txHash: fakeTxHash(input.jobId) };
+export async function getTransaction(
+  txHash: string,
+): Promise<ethers.TransactionResponse | null> {
+  return provider.getTransaction(txHash);
 }
 
-/**
- * 거래 승인 트랜잭션 시뮬레이션 + 전송.
- * 실제 EVM 시뮬레이션과 블록체인 전송은 아직 구현하지 않는다.
- */
-export async function simulateAndSubmitTradeApproval(
-  input: TransactionSubmissionInput,
-): Promise<TransactionSubmissionResult> {
-  // TODO: 1) EVM 시뮬레이션 2) 실제 블록체인 전송
-  console.log(`[blockchain] simulateAndSubmitTradeApproval jobId=${input.jobId}`);
-
-  return { result: "SUCCESS", txHash: fakeTxHash(input.jobId) };
+export async function getTransactionReceipt(
+  txHash: string,
+): Promise<ethers.TransactionReceipt | null> {
+  return provider.getTransactionReceipt(txHash);
 }
 
-/**
- * 컨텐츠 등록 트랜잭션 영수증 확인.
- * 실제 블록체인 RPC 호출은 아직 구현하지 않는다.
- */
-export async function checkContentRegistrationReceipt(txHash: string): Promise<ReceiptCheckResult> {
-  // TODO: 실제 영수증 조회 (viem: getTransactionReceipt)
-  console.log(`[blockchain] checkContentRegistrationReceipt txHash=${txHash}`);
-
-  return { confirmed: true };
+export async function simulateContentRegistration(
+  proof: string,
+  publicSignals: string,
+): Promise<void> {
+  await contentTradeContract.registerContent.staticCall(
+    proof,
+    publicSignals,
+  );
 }
 
-/**
- * 거래 승인 트랜잭션 영수증 확인.
- * 실제 블록체인 RPC 호출은 아직 구현하지 않는다.
- */
-export async function checkTradeApprovalReceipt(txHash: string): Promise<ReceiptCheckResult> {
-  // TODO: 실제 영수증 조회
-  console.log(`[blockchain] checkTradeApprovalReceipt txHash=${txHash}`);
+export async function simulateTradeApproval(
+  proof: string,
+  publicSignals: string,
+): Promise<void> {
+  await contentTradeContract.tradeApproval.staticCall(
+    proof,
+    publicSignals,
+  );
+}
 
-  return { confirmed: true };
+export type Eip1559Fee = {
+  maxFeePerGas: bigint;
+  maxPriorityFeePerGas: bigint;
+};
+
+export async function getEip1559Fee(): Promise<Eip1559Fee> {
+  const feeData = await provider.getFeeData();
+  if (feeData.maxFeePerGas === null || feeData.maxPriorityFeePerGas === null
+  ) {
+    throw new Error("EIP-1559 fee data is unavailable");
+  }
+  return {
+    maxFeePerGas: feeData.maxFeePerGas,
+    maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
+  };
+}
+
+export async function estimateGas(
+  transaction: {
+    to: string;
+    data: string;
+    value?: bigint;
+  },
+): Promise<bigint> {
+  return provider.estimateGas({
+    from: wallet.address,
+    to: transaction.to,
+    data: transaction.data,
+    value: transaction.value ?? 0n,
+  });
+}
+
+export function addGasMargin(
+  gas: bigint,
+  percentage = 20,
+): bigint {
+  return (gas * BigInt(100 + percentage)) / 100n;
 }
