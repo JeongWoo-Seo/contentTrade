@@ -21,50 +21,151 @@ export async function processReceiptCheck(
   }
 }
 
-async function processContentRegistrationReceipt(jobId: string): Promise<void> {
+async function processContentRegistrationReceipt(
+  jobId: string,
+): Promise<void> {
   const job = await contentRegistrationTransactionRepository.findByJobId(jobId);
-  if (!job || job.status !== "SUBMITTED") return; // idempotent
-
-  const receipt = await checkContentRegistrationReceipt(job.txHash!);
-  if (!receipt.confirmed) {
+  if (!job || job.status !== "SUBMITTED") {
     return;
   }
 
+  const receipt = await checkContentRegistrationReceipt(job.txHash!);
+
+  // 아직 pending
+  if (!receipt.confirmed && !receipt.failed) {
+    return;
+  }
+
+  // 블록체인 실행 실패
+  if (receipt.failed) {
+    await prisma.$transaction(async (tx) => {
+      const updated = await tx.contentRegistrationTransaction.updateMany({
+          where: {
+            id: job.id,
+            status: "SUBMITTED",
+          },
+          data: {
+            status: "FAILED",
+            failureReason: `Transaction reverted (status=${receipt.status})`,
+          },
+        });
+
+      if (updated.count === 0) return;
+
+      await outboxRepository.create(tx, {
+        jobId: job.jobId,
+        jobType: "CONTENT_REGISTRATION",
+        eventType: "TRANSACTION_FAILED",
+      });
+    });
+
+    console.error(
+      `[blockchain-worker] content registration FAILED ` +
+        `jobId=${job.jobId} txHash=${receipt.transactionHash}`,
+    );
+
+    return;
+  }
+
+  // 성공
   await prisma.$transaction(async (tx) => {
     const updated = await tx.contentRegistrationTransaction.updateMany({
-      where: { id: job.id, status: "SUBMITTED" },
-      data: { status: "CONFIRMED", confirmedAt: new Date() },
-    });
+        where: {
+          id: job.id,
+          status: "SUBMITTED",
+        },
+        data: {
+          status: "CONFIRMED",
+          confirmedAt: new Date(),
+        },
+      });
+
     if (updated.count === 0) return;
+
     await outboxRepository.create(tx, {
       jobId: job.jobId,
       jobType: "CONTENT_REGISTRATION",
       eventType: "TRANSACTION_COMPLETED",
     });
   });
-  console.log(`[blockchain-worker] content registration CONFIRMED jobId=${job.jobId}`);
+
+  console.log(
+    `[blockchain-worker] content registration CONFIRMED ` +
+      `jobId=${job.jobId}`,
+  );
 }
 
 async function processTradeApprovalReceipt(jobId: string): Promise<void> {
   const job = await tradeApprovalTransactionRepository.findByJobId(jobId);
-  if (!job || job.status !== "SUBMITTED") return;
-
-  const receipt = await checkTradeApprovalReceipt(job.txHash!);
-  if (!receipt.confirmed) {
+  if (!job || job.status !== "SUBMITTED") {
     return;
   }
 
+  const receipt = await checkTradeApprovalReceipt(job.txHash!);
+
+  // 아직 블록에 포함되지 않음
+  if (!receipt.confirmed && !receipt.failed) {
+    return;
+  }
+
+  // 블록체인 실행 실패
+  if (receipt.failed) {
+    await prisma.$transaction(async (tx) => {
+      const updated = await tx.tradeApprovalTransaction.updateMany({
+        where: {
+          id: job.id,
+          status: "SUBMITTED",
+        },
+        data: {
+          status: "FAILED",
+          failureReason: `Transaction reverted (status=${receipt.status})`,
+        },
+      });
+
+      if (updated.count === 0) {
+        return;
+      }
+
+      await outboxRepository.create(tx, {
+        jobId: job.jobId,
+        jobType: "TRADE_APPROVAL",
+        eventType: "TRANSACTION_FAILED",
+      });
+    });
+
+    console.error(
+      `[blockchain-worker] trade approval FAILED ` +
+        `jobId=${job.jobId} txHash=${receipt.transactionHash}`,
+    );
+
+    return;
+  }
+
+  // 블록체인 실행 성공
   await prisma.$transaction(async (tx) => {
     const updated = await tx.tradeApprovalTransaction.updateMany({
-      where: { id: job.id, status: "SUBMITTED" },
-      data: { status: "CONFIRMED", confirmedAt: new Date() },
+      where: {
+        id: job.id,
+        status: "SUBMITTED",
+      },
+      data: {
+        status: "CONFIRMED",
+        confirmedAt: new Date(),
+      },
     });
-    if (updated.count === 0) return;
+
+    if (updated.count === 0) {
+      return;
+    }
+
     await outboxRepository.create(tx, {
       jobId: job.jobId,
       jobType: "TRADE_APPROVAL",
       eventType: "TRANSACTION_COMPLETED",
     });
   });
-  console.log(`[blockchain-worker] trade approval CONFIRMED jobId=${job.jobId}`);
+
+  console.log(
+    `[blockchain-worker] trade approval CONFIRMED jobId=${job.jobId}`,
+  );
 }

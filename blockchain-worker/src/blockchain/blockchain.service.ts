@@ -139,20 +139,25 @@ async function checkTransactionReceipt(
   if (!receipt) {
     return {
       confirmed: false,
+      failed: false,
       transactionHash: txHash,
     };
   }
 
+  // 성공
   if (receipt.status === 1) {
     return {
       confirmed: true,
+      failed: false,
       status: receipt.status,
       transactionHash: receipt.hash,
     };
   }
 
+  // EVM 실행 실패
   return {
     confirmed: false,
+    failed: true,
     status: receipt.status,
     transactionHash: receipt.hash,
   };

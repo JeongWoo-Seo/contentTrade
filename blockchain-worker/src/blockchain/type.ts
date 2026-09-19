@@ -26,6 +26,7 @@ export type Eip1559Fee = {
 
 export interface ReceiptCheckResult {
   confirmed: boolean;
+  failed: boolean;
   status?: number | null;
   transactionHash?: string;
 }
