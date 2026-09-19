@@ -9,14 +9,13 @@ import {
   getPendingNonce,
   estimateGas,
   addGasMargin,
-  getEip1559Fee,
-  type TransactionInput
+  getEip1559Fee
 } from "../../blockchain/blockchain.service.js";
 import { sleep } from "../../utils/sleep.js";
 import { contentTradeContract } from "../../blockchain/blockchian.js";
 import { isError } from "ethers";
 import {isRetryableRpcError,getErrorReason} from "../../utils/blockchain-error.js"
-
+import { type TransactionInput } from "../../blockchain/type.js";
 /**
  * Content Registration Transaction 처리
  *

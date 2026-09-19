@@ -8,6 +8,7 @@ import type { OutboxJobType } from "@prisma/client";
 /**
  * RECEIPT_CHECK_REQUESTED 이벤트 처리.
  * SUBMITTED job의 receipt를 확인하여 CONFIRMED(+outbox) 또는 FAILED(타임아웃)로 전이한다.
+ * receipt worker는 상태 확인하는 과정만 하지 때문에 status를 proseccing 으로 변경하지 않는다.
  */
 export async function processReceiptCheck(
   jobId: string,
@@ -26,7 +27,6 @@ async function processContentRegistrationReceipt(jobId: string): Promise<void> {
 
   const receipt = await checkContentRegistrationReceipt(job.txHash!);
   if (!receipt.confirmed) {
-    // 아직 확정되지 않음 → 상태 유지. 재확인은 recovery worker가 담당한다.
     return;
   }
 

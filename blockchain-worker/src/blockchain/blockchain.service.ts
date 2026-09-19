@@ -1,29 +1,7 @@
 import { ethers } from "ethers";
-import {
-  provider,
-  wallet,
-  contentTradeContract,
-} from "./blockchian.js";
+import { provider, wallet, contentTradeContract } from "./blockchian.js";
+import { TransactionInput, SignedTransaction, Eip1559Fee, ReceiptCheckResult } from "./type.js";
 
-export type TransactionInput = {
-  to: string;
-  data: string;
-  nonce: number;
-  gasLimit?: bigint;
-  maxFeePerGas?: bigint;
-  maxPriorityFeePerGas?: bigint;
-  value?: bigint;
-};
-
-export type SignedTransaction = {
-  signedTx: string;
-  txHash: string;
-};
-
-export type SubmittedTransaction = {
-  txHash: string;
-  nonce: number;
-};
 
 export async function getPendingNonce(): Promise<number> {
   return provider.getTransactionCount(
@@ -81,10 +59,7 @@ export async function simulateTradeApproval(
   );
 }
 
-export type Eip1559Fee = {
-  maxFeePerGas: bigint;
-  maxPriorityFeePerGas: bigint;
-};
+
 
 export async function getEip1559Fee(): Promise<Eip1559Fee> {
   const feeData = await provider.getFeeData();
@@ -118,4 +93,67 @@ export function addGasMargin(
   percentage = 20,
 ): bigint {
   return (gas * BigInt(100 + percentage)) / 100n;
+}
+
+
+
+/**
+ * Content Registration 트랜잭션 receipt 확인
+ */
+export async function checkContentRegistrationReceipt(
+  txHash: string,
+): Promise<ReceiptCheckResult> {
+  return checkTransactionReceipt(txHash);
+}
+
+/**
+ * Trade Approval 트랜잭션 receipt 확인
+ */
+export async function checkTradeApprovalReceipt(
+  txHash: string,
+): Promise<ReceiptCheckResult> {
+  return checkTransactionReceipt(txHash);
+}
+
+/**
+ * Ethereum transaction receipt 확인
+ *
+ * receipt == null
+ *   -> 아직 pending
+ *
+ * receipt.status === 1
+ *   -> transaction 성공
+ *
+ * receipt.status === 0
+ *   -> transaction revert
+ */
+async function checkTransactionReceipt(
+  txHash: string,
+): Promise<ReceiptCheckResult> {
+  if (!txHash) {
+    throw new Error("Transaction hash is required");
+  }
+
+  const receipt = await provider.getTransactionReceipt(txHash);
+
+  if (!receipt) {
+    return {
+      confirmed: false,
+      transactionHash: txHash,
+    };
+  }
+
+  if (receipt.status === 1) {
+    return {
+      confirmed: true,
+      status: receipt.status,
+      transactionHash: receipt.hash,
+    };
+  }
+
+  return {
+    confirmed: false,
+    status: receipt.status,
+    transactionHash: receipt.hash,
+  };
 }

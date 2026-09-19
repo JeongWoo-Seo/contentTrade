@@ -9,18 +9,13 @@ import {
     getPendingNonce,
     estimateGas,
     addGasMargin,
-    getEip1559Fee,
-    type TransactionInput,
+    getEip1559Fee
 } from "../../blockchain/blockchain.service.js";
+import { type TransactionInput } from "../../blockchain/type.js";
 import { sleep } from "../../utils/sleep.js";
 import { contentTradeContract } from "../../blockchain/blockchian.js";
-import {
-    isError,
-} from "ethers";
-import {
-    isRetryableRpcError,
-    getErrorReason,
-} from "../../utils/blockchain-error.js";
+import { isError } from "ethers";
+import { isRetryableRpcError, getErrorReason } from "../../utils/blockchain-error.js";
 
 /**
  * Trade Approval Transaction 처리
@@ -419,7 +414,7 @@ async function markTradeApprovalSubmittedWithRetry({
                 nonce,
             }),
         {
-            operationName:`mark trade approval SUBMITTED jobId=${jobId}`,
+            operationName: `mark trade approval SUBMITTED jobId=${jobId}`,
         },
     );
 }
@@ -435,17 +430,17 @@ async function markTradeApprovalSubmitted({
 }) {
     return prisma.$transaction(async (tx) => {
         const updated = await tx.tradeApprovalTransaction.updateMany({
-                where: {
-                    jobId,
-                    status: "PROCESSING",
-                },
-                data: {
-                    status: "SUBMITTED",
-                    txHash,
-                    nonce,
-                    submittedAt: new Date(),
-                },
-            });
+            where: {
+                jobId,
+                status: "PROCESSING",
+            },
+            data: {
+                status: "SUBMITTED",
+                txHash,
+                nonce,
+                submittedAt: new Date(),
+            },
+        });
 
         if (updated.count === 0) {
             console.warn(
@@ -458,10 +453,10 @@ async function markTradeApprovalSubmitted({
         }
 
         const outboxJob = await outboxRepository.create(tx, {
-                jobId,
-                jobType: "TRADE_APPROVAL",
-                eventType: "RECEIPT_CHECK_REQUESTED",
-            });
+            jobId,
+            jobType: "TRADE_APPROVAL",
+            eventType: "RECEIPT_CHECK_REQUESTED",
+        });
 
         if (!outboxJob) {
             throw new Error(
@@ -507,15 +502,15 @@ async function failTradeApprovalJob(
 ): Promise<void> {
     await prisma.$transaction(async (tx) => {
         const updated = await tx.tradeApprovalTransaction.updateMany({
-                where: {
-                    id: job.id,
-                    status: "PROCESSING",
-                },
-                data: {
-                    status: "FAILED",
-                    failureReason: reason,
-                },
-            });
+            where: {
+                id: job.id,
+                status: "PROCESSING",
+            },
+            data: {
+                status: "FAILED",
+                failureReason: reason,
+            },
+        });
 
         if (updated.count === 0) {
             console.warn(

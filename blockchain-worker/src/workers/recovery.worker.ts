@@ -14,7 +14,7 @@ const STATUS_EVENT_MAP: Array<[TransactionJobStatus, OutboxEventType]> = [
 
 /**
  * Recovery Worker.
- * 정상 흐름은 Redis Streams를 사용하고, 이 Worker는 예외적 장애 복구만 담당한다.
+ * 정상 흐름은 Kafka를 사용하고, 이 Worker는 예외적 장애 복구만 담당한다.
  * 각 상태의 job에 대해 다음 단계 Outbox가 없으면 재생성한다(중복은 skip).
  */
 export class RecoveryWorker {

@@ -20,7 +20,6 @@
     "@prisma/client": "^7.10.0",
     "dotenv": "^17.4.2",
     "ethers": "^6.17.0",
-    "ioredis": "^6.0.0",
     "kafkajs": "^2.2.4",
     "pg": "^8.23.0",
     "prisma": "^7.10.0",

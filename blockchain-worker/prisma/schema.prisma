@@ -188,10 +188,10 @@ model TransactionOutbox {
   // 다음 단계에서 수행할 작업
   eventType OutboxEventType @map("event_type")
 
-  // Redis/MQ 전달 상태
+  // 메시지큐 전달 상태
   status OutboxStatus @default(PENDING)
 
-  // Redis publish 완료 시각
+  // 메시지큐 publish 완료 시각
   publishedAt DateTime? @map("published_at")
 
   // 재시도 횟수

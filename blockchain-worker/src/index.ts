@@ -1,9 +1,8 @@
 import "dotenv/config";
-import { connectProducer, disconnectProducer } from "./kafka/producer.js";
+import { connectProducer, disconnectProducer, ensureTopics } from "./kafka/producer.js";
+import { TOPICS } from "./kafka/topics.js";
 import { closeMarketClient } from "./grpc/market.client.js";
 import { prisma } from "./lib/prisma.js";
-import { connectRedis, disconnectRedis } from "./redis/client.js";
-import { ensureConsumerGroups } from "./redis/streams.js";
 import { OutboxWorker } from "./workers/outbox.worker.js";
 import { TransactionWorker } from "./workers/transaction.worker.js";
 import { ReceiptWorker } from "./workers/receipt.worker.js";
@@ -11,12 +10,13 @@ import { ResultSendWorker } from "./workers/resultSend.worker.js";
 import { RecoveryWorker } from "./workers/recovery.worker.js";
 
 async function main(): Promise<void> {
-  // Redis (Streams / Consumer Group)
-  await connectRedis();
-  await ensureConsumerGroups();
-
-  // Kafka producer (실패 메시지 발행용)
+  // Kafka producer (outbox 이벤트 + 실패 메시지 발행용)
   await connectProducer();
+  await ensureTopics([
+    { topic: TOPICS.transaction, numPartitions: 1 },
+    { topic: TOPICS.receipt, numPartitions: 1 },
+    { topic: TOPICS.result, numPartitions: 1 },
+  ]);
 
   // Workers
   const workers = [
@@ -27,11 +27,11 @@ async function main(): Promise<void> {
     new RecoveryWorker(),
   ];
 
-  for (const worker of workers) {
+  const workerPromises = workers.map((worker) =>
     worker.start().catch((error) => {
       console.error("[blockchain-worker] worker crashed:", error);
-    });
-  }
+    }),
+  );
 
   console.log("[blockchain-worker] all workers started");
 
@@ -49,11 +49,16 @@ async function main(): Promise<void> {
         worker.stop();
       }
 
-      // Redis를 먼저 닫아 blocking XREADGROUP을 해제한다.
-      await disconnectRedis();
-      await disconnectProducer();//kafka
-      closeMarketClient();//grpc
-      await prisma.$disconnect();//db
+      // worker 정지 후 producer/market/prisma disconnect를 bounded wait로 시도.
+      // consumer의 in-flight 메시지(장기 retry)에 막히지 않도록 force-exit으로 마무리한다.
+      await Promise.race([
+        (async () => {
+          await disconnectProducer();
+          closeMarketClient();
+          await prisma.$disconnect();
+        })(),
+        new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+      ]);
 
       console.log("[blockchain-worker] shutdown complete");
       process.exit(0);

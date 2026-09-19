@@ -11,7 +11,7 @@ export async function retryBase<T>(
 ): Promise<T> {
   const {
     operationName,
-    alertEveryRetries = 10,
+    alertEveryRetries = 5,
     initialDelayMs = 1_000,
     maxDelayMs = 30_000,
   } = options;

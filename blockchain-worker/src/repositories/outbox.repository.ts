@@ -39,7 +39,7 @@ export const outboxRepository = {
   },
 
   /**
-   * Redis publish 실패 시 재시도 횟수 증가 + 마지막 오류 기록.
+   * Kafka publish 실패 시 재시도 횟수 증가 + 마지막 오류 기록.
    * status는 PENDING으로 유지하여 재시도한다.
    */
   async markPublishFailed(id: number, error: string) {

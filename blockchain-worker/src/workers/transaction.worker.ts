@@ -1,26 +1,24 @@
-import { env } from "../config/env.js";
-import { GROUPS, STREAMS, runStreamConsumer } from "../redis/streams.js";
-import { processTransactionRequest } from "../services/transaction/transaction.service.js";
+import { CONSUMER_GROUPS, TOPICS } from "../kafka/topics.js";
+import { startConsumer } from "../kafka/consumer.js";
+import { processContentRegistration } from "../services/transaction/transaction.service.js";
+import { processTradeApproval } from "../services/transaction/tradeApproval.service.js";
+import type { OutboxJobType } from "@prisma/client";
 
 /**
  * Transaction Worker.
- * `blockchain:transaction` Stream의 TRANSACTION_REQUESTED 이벤트를 소비하여
+ * `blockchain.transaction` topic의 TRANSACTION_REQUESTED 이벤트를 소비하여
  * EVM 전송 후 SUBMITTED(+outbox) 또는 FAILED(+outbox)로 전이한다.
  */
 export class TransactionWorker {
   private running = false;
-  private readonly consumer = `transaction-${process.pid}`;
 
   async start(): Promise<void> {
     this.running = true;
-    console.log(`[blockchain-worker] transaction worker started (consumer=${this.consumer})`);
+    console.log("[blockchain-worker] transaction worker started");
 
-    await runStreamConsumer({
-      stream: STREAMS.transaction,
-      group: GROUPS.transaction,
-      consumer: this.consumer,
-      blockMs: env.redisBlockTimeoutMs,
-      reclaimIntervalMs: env.redisReclaimIntervalMs,
+    await startConsumer({
+      topic: TOPICS.transaction,
+      groupId: CONSUMER_GROUPS.transaction,
       process: (message) => processTransactionRequest(message.jobId, message.jobType),
       shouldRun: () => this.running,
     });
@@ -30,5 +28,16 @@ export class TransactionWorker {
 
   stop(): void {
     this.running = false;
+  }
+}
+
+async function processTransactionRequest(
+  jobId: string,
+  jobType: OutboxJobType,
+): Promise<void> {
+  if (jobType === "CONTENT_REGISTRATION") {
+    await processContentRegistration(jobId);
+  } else {
+    await processTradeApproval(jobId);
   }
 }
