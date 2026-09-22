@@ -1,6 +1,6 @@
 import { CONSUMER_GROUPS, TOPICS } from "../kafka/topics.js";
 import { startConsumer } from "../kafka/consumer.js";
-import { processContentRegistration } from "../services/transaction/transaction.service.js";
+import { processContentRegistration } from "../services/transaction/contentResistration.service.js";
 import { processTradeApproval } from "../services/transaction/tradeApproval.service.js";
 import type { OutboxJobType } from "@prisma/client";
 
