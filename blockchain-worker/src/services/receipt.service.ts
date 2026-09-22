@@ -40,15 +40,15 @@ async function processContentRegistrationReceipt(
   if (receipt.failed) {
     await prisma.$transaction(async (tx) => {
       const updated = await tx.contentRegistrationTransaction.updateMany({
-          where: {
-            id: job.id,
-            status: "SUBMITTED",
-          },
-          data: {
-            status: "FAILED",
-            failureReason: `Transaction reverted (status=${receipt.status})`,
-          },
-        });
+        where: {
+          id: job.id,
+          status: "SUBMITTED",
+        },
+        data: {
+          status: "FAILED",
+          failureReason: `Transaction reverted (status=${receipt.status})`,
+        },
+      });
 
       if (updated.count === 0) return;
 
@@ -61,7 +61,7 @@ async function processContentRegistrationReceipt(
 
     console.error(
       `[blockchain-worker] content registration FAILED ` +
-        `jobId=${job.jobId} txHash=${receipt.transactionHash}`,
+      `jobId=${job.jobId} txHash=${receipt.transactionHash}`,
     );
 
     return;
@@ -70,15 +70,15 @@ async function processContentRegistrationReceipt(
   // 성공
   await prisma.$transaction(async (tx) => {
     const updated = await tx.contentRegistrationTransaction.updateMany({
-        where: {
-          id: job.id,
-          status: "SUBMITTED",
-        },
-        data: {
-          status: "CONFIRMED",
-          confirmedAt: new Date(),
-        },
-      });
+      where: {
+        id: job.id,
+        status: "SUBMITTED",
+      },
+      data: {
+        status: "CONFIRMED",
+        confirmedAt: new Date(),
+      },
+    });
 
     if (updated.count === 0) return;
 
@@ -91,7 +91,7 @@ async function processContentRegistrationReceipt(
 
   console.log(
     `[blockchain-worker] content registration CONFIRMED ` +
-      `jobId=${job.jobId}`,
+    `jobId=${job.jobId}`,
   );
 }
 
@@ -135,7 +135,7 @@ async function processTradeApprovalReceipt(jobId: string): Promise<void> {
 
     console.error(
       `[blockchain-worker] trade approval FAILED ` +
-        `jobId=${job.jobId} txHash=${receipt.transactionHash}`,
+      `jobId=${job.jobId} txHash=${receipt.transactionHash}`,
     );
 
     return;

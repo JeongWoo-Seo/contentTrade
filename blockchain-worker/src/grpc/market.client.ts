@@ -22,6 +22,20 @@ export function completeContentRegistration(
   });
 }
 
+export function completeTradeApproval(
+  request: Market.CompleteTradeApprovalRequest,
+): Promise<Market.CompleteTradeApprovalResponse> {
+  return new Promise((resolve, reject) => {
+    client.completeTradeApproval(request, (error, response) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
+
 export function closeMarketClient(): void {
   client.close();
 }

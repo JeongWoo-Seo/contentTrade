@@ -1,6 +1,6 @@
 import { contentRegistrationTransactionRepository } from "../repositories/content-registration.repository.js";
 import { tradeApprovalTransactionRepository } from "../repositories/trade-approval.repository.js";
-import { completeContentRegistration } from "../grpc/market.client.js";
+import { completeContentRegistration, completeTradeApproval} from "../grpc/market.client.js";
 import { sendBlockchainFailed } from "../kafka/producer.js";
 import { Market } from "@content-trade/grpc-contract";
 import type { JobFailedMessage } from "../kafka/types.js";
@@ -79,7 +79,12 @@ async function processTradeApprovalResult(
 
   if (eventType === "TRANSACTION_COMPLETED") {
     if (job.status !== "CONFIRMED") return;
-    // TODO: Market의 거래 승인 완료 gRPC(CompleteTradeApproval)가 추가되면 호출한다.
+    const request: Market.CompleteTradeApprovalRequest = {
+      jobId: job.jobId,
+      tradeId: job.purchaseId,
+      txHash: job.txHash ?? "",
+    };
+    await completeTradeApproval(request)
     await tradeApprovalTransactionRepository.delete(job.id);
     console.log(`[blockchain-worker] trade approval result sent (market TODO) jobId=${job.jobId}`);
     return;
