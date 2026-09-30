@@ -109,11 +109,11 @@ export const novelService = {
     txHash
   }: {
     registrationId: number;
-    encryptedData: string;
-    dataIv: string;
-    keyIv: string
-    keyAuthTag: string;
-    encryptedDataKey: string;
+    encryptedData: Uint8Array;
+    dataIv: Uint8Array;
+    keyIv: Uint8Array
+    keyAuthTag: Uint8Array;
+    encryptedDataKey: Uint8Array;
     encryptionVersion: number;
     contentHash: string;
     keyHash: string;

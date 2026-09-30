@@ -74,11 +74,11 @@ export const contentRegistrationRepository = {
     txHash,
   }: {
     registrationId: number;
-    encryptedData: string;
-    dataIv: string;
-    encryptedDataKey: string;
-    keyIv: string;
-    keyAuthTag: string;
+    encryptedData: Uint8Array;
+    dataIv: Uint8Array;
+    encryptedDataKey: Uint8Array;
+    keyIv: Uint8Array;
+    keyAuthTag: Uint8Array;
     encryptionVersion: number;
     keyHash: string;
     encryptedDataHash: string;
@@ -138,11 +138,11 @@ export const contentRegistrationRepository = {
           authorId: registration.authorId,
           description: registration.description,
           price: registration.price,
-          encryptedData,
-          dataIv,
-          keyAuthTag,
-          encryptedDataKey,
-          keyIv,
+          encryptedData: new Uint8Array(encryptedData),
+          dataIv: new Uint8Array(dataIv),
+          keyAuthTag: new Uint8Array(keyAuthTag),
+          encryptedDataKey: new Uint8Array(encryptedDataKey),
+          keyIv: new Uint8Array(keyIv),
           encryptionVersion,
           contentHash,
           keyHash,

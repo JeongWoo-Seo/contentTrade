@@ -32,6 +32,17 @@ enum BuyStatus {
   REJECTED // 거래 거절
 }
 
+enum OutboxJobType {
+  CONTENT_REGISTRATION
+  TRADE_APPROVAL
+}
+
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
 // ============================================================
 // User
 // ============================================================
@@ -138,21 +149,24 @@ model ContentList {
   // ----------------------------------------------------------
   // 암호화된 소설 데이터
   // ----------------------------------------------------------
-  // Base64 문자열
-  encryptedData String @map("encrypted_data") @db.Text
+  // AES-256-CTR ciphertext
+  encryptedData Bytes @map("encrypted_data")
 
-  // 12 bytes → Base64
-  dataIv String @map("data_iv") @db.VarChar(255)
+  // AES-CTR IV (16 bytes)
+  dataIv Bytes @map("data_iv")
 
   // ----------------------------------------------------------
   // Data Key
   // ----------------------------------------------------------
 
   // 소설 암호화에 사용된 AES Data Key를
-  // MASTER_KEY로 암호화한 값
-  encryptedDataKey String @map("encrypted_data_key") @db.Text
-  keyIv String @db.VarChar(255)
-  keyAuthTag String @map("key_auth_tag") @db.VarChar(255)
+  encryptedDataKey Bytes @map("encrypted_data_key")
+
+  // Data Key 암호화에 사용된 IV (16 bytes)
+  keyIv Bytes @map("key_iv")
+
+  // HMAC-SHA256 결과 (32 bytes)
+  keyAuthTag Bytes @map("key_auth_tag")
 
   // ----------------------------------------------------------
   // 암호화 버전
@@ -282,4 +296,45 @@ model RefreshToken {
   @@index([userId])
   @@index([familyId])
   @@map("refresh_tokens")
+}
+
+// ============================================================
+// Outbox
+// ============================================================
+
+model Outbox {
+  id Int @id @default(autoincrement())
+
+  // 작업 ID
+  jobId String @map("job_id") @db.VarChar(100)
+  jobType OutboxJobType @map("job_type")
+  // 작업 대상 DB ID
+  referenceId Int @map("reference_id")
+
+  // Outbox 처리 상태
+  status OutboxStatus @default(PENDING)
+
+  // Kafka publish 성공 시각
+  // null이면 아직 publish되지 않음
+  publishedAt DateTime? @map("published_at")
+
+  // publish 재시도 횟수
+  retryCount Int @default(0) @map("retry_count")
+
+  // 마지막 publish 실패 이유
+  lastError String? @map("last_error") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // 미발행 이벤트 조회
+  @@index([publishedAt, createdAt])
+
+  // jobId 조회 / idempotency
+  @@index([jobId])
+
+  // 작업 종류 + 대상 ID 조회
+  @@index([jobType, referenceId])
+
+  @@map("outbox")
 }
