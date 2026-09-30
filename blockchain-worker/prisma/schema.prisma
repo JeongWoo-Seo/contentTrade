@@ -33,7 +33,10 @@ model ContentRegistrationTransaction {
   // 소설 등록 ID
   registrationId Int @map("registration_id")
 
+  // ----------------------------------------------------------
   // ZK Proof
+  // ----------------------------------------------------------
+
   proof String @db.Text
 
   // ZK circuit public inputs
@@ -43,27 +46,36 @@ model ContentRegistrationTransaction {
   // 암호화된 소설 데이터
   // ----------------------------------------------------------
 
-  encryptedData String @map("encrypted_data") @db.Text
+  // AES-256-CTR ciphertext
+  encryptedData Bytes @map("encrypted_data")
 
-  dataIv String @map("data_iv") @db.VarChar(255)
+  // AES-CTR IV (16 bytes)
+  dataIv Bytes @map("data_iv")
 
-  encryptedDataKey String @map("encrypted_data_key") @db.Text
+  // MASTER_KEY로 암호화된 Data Key (32 bytes)
+  encryptedDataKey Bytes @map("encrypted_data_key")
 
-  keyIv String @map("key_iv") @db.VarChar(255)
+  // Data Key 암호화에 사용된 IV (16 bytes)
+  keyIv Bytes @map("key_iv")
 
-  keyAuthTag String @map("key_auth_tag") @db.VarChar(255)
+  // HMAC-SHA256 결과 (32 bytes)
+  keyAuthTag Bytes @map("key_auth_tag")
 
+  // 암호화 포맷 버전
   encryptionVersion Int @map("encryption_version")
 
   // ----------------------------------------------------------
   // Content 검증
   // ----------------------------------------------------------
 
-  keyHash String @map("key_hash") @db.VarChar(255)
+  // Poseidon hash → 64자리 hex
+  keyHash String @map("key_hash") @db.VarChar(64)
 
-  encryptedDataHash String @map("encrypted_data_hash") @db.VarChar(255)
+  // Poseidon hash → 64자리 hex
+  encryptedDataHash String @map("encrypted_data_hash") @db.VarChar(64)
 
-  contentHash String @map("content_hash") @db.VarChar(255)
+  // Poseidon hash → 64자리 hex
+  contentHash String @map("content_hash") @db.VarChar(64)
 
   // ----------------------------------------------------------
   // Blockchain
@@ -91,11 +103,8 @@ model ContentRegistrationTransaction {
 
 
   @@index([status])
-
   @@index([registrationId])
-
   @@index([createdAt])
-
   @@index([status, createdAt])
 
   @@map("content_registration_transactions")

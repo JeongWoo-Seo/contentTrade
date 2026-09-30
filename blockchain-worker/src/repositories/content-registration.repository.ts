@@ -45,45 +45,6 @@ export const contentRegistrationTransactionRepository = {
     });
   },
 
-  async create(data: {
-    jobId: string;
-    registrationId: number;
-    proof: string;
-    publicSignals: string[];
-    encryptedData: string;
-    dataIv: string;
-    encryptedDataKey: string;
-    keyIv: string;
-    keyAuthTag: string;
-    encryptionVersion: number;
-    keyHash: string;
-    encryptedDataHash: string;
-    contentHash: string;
-  }) {
-    return prisma.contentRegistrationTransaction.create({
-      data: {
-        jobId: data.jobId,
-        registrationId: data.registrationId,
-        proof: data.proof,
-        publicSignals: JSON.stringify(data.publicSignals),
-
-        encryptedData: data.encryptedData,
-        dataIv: data.dataIv,
-        encryptedDataKey: data.encryptedDataKey,
-        keyIv: data.keyIv,
-        keyAuthTag: data.keyAuthTag,
-
-        encryptionVersion: data.encryptionVersion,
-
-        keyHash: data.keyHash,
-        encryptedDataHash: data.encryptedDataHash,
-        contentHash: data.contentHash,
-
-        status: "PENDING",
-      },
-    });
-  },
-
   async markSubmitted(
     id: number,
     txHash: string,

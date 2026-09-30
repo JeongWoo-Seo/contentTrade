@@ -16,9 +16,9 @@ export const env = {
   kafkaClientId: process.env.KAFKA_CLIENT_ID ?? "blockchain-worker",
   kafkaFailureTopic: process.env.KAFKA_FAILURE_TOPIC ?? "PROOF_FAILED",
 
-  kafkaTransactionTopic: process.env.KAFKA_TRANSACTION_TOPIC ?? "blockchain.transaction",
-  kafkaReceiptTopic: process.env.KAFKA_RECEIPT_TOPIC ?? "blockchain.receipt",
-  kafkaResultTopic: process.env.KAFKA_RESULT_TOPIC ?? "blockchain.result",
+  kafkaTransactionTopic: process.env.KAFKA_TRANSACTION_TOPIC ?? "blockchain_transaction",
+  kafkaReceiptTopic: process.env.KAFKA_RECEIPT_TOPIC ?? "blockchain_receipt",
+  kafkaResultTopic: process.env.KAFKA_RESULT_TOPIC ?? "blockchain_result",
 
   kafkaTransactionGroup: process.env.KAFKA_TRANSACTION_GROUP ?? "transaction-workers",
   kafkaReceiptGroup: process.env.KAFKA_RECEIPT_GROUP ?? "receipt-workers",
