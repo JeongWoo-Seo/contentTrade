@@ -1,10 +1,9 @@
 import { contentRegistrationTransactionRepository } from "../repositories/content-registration.repository.js";
 import { tradeApprovalTransactionRepository } from "../repositories/trade-approval.repository.js";
-import { completeContentRegistration, completeTradeApproval} from "../grpc/market.client.js";
-import { sendBlockchainFailed } from "../kafka/producer.js";
+import { completeContentRegistration, completeTradeApproval } from "../grpc/market.client.js";
 import { Market } from "@content-trade/grpc-contract";
-import type { JobFailedMessage } from "../kafka/types.js";
 import type { OutboxEventType, OutboxJobType } from "@prisma/client";
+import { withDbRetry, withGrpcRetry } from "../utils/retry.js";
 
 /**
  * TRANSACTION_COMPLETED / TRANSACTION_FAILED 이벤트 처리.
@@ -19,93 +18,137 @@ export async function processResult(
   eventType: OutboxEventType,
 ): Promise<void> {
   if (jobType === "CONTENT_REGISTRATION") {
-    await processContentRegistrationResult(jobId, eventType);
+    await processContentRegistrationResult(jobId);
   } else {
-    await processTradeApprovalResult(jobId, eventType);
+    await processTradeApprovalResult(jobId);
   }
 }
 
 async function processContentRegistrationResult(
   jobId: string,
-  eventType: OutboxEventType,
 ): Promise<void> {
+  // --------------------------------------------------
+  // Blockchain 단계 결과
+  // --------------------------------------------------
   const job = await contentRegistrationTransactionRepository.findByJobId(jobId);
-  if (!job) return; // 이미 전송 완료(삭제됨)
 
-  if (eventType === "TRANSACTION_COMPLETED") {
-    if (job.status !== "CONFIRMED") return; // stale 이벤트
-    const request: Market.CompleteContentRegistrationRequest = {
-      jobId: job.jobId,
-      registrationId: job.registrationId,
-      encryptedData: job.encryptedData,
-      dataIv: job.dataIv,
-      encryptedDataKey: job.encryptedDataKey,
-      keyIv: job.keyIv,
-      keyAuthTag: job.keyAuthTag,
-      encryptionVersion: job.encryptionVersion,
-      keyHash: job.keyHash,
-      encryptedDataHash: job.encryptedDataHash,
-      contentHash: job.contentHash,
-      txHash: job.txHash ?? "",
-    };
-    await completeContentRegistration(request);
-    await contentRegistrationTransactionRepository.delete(job.id);
-    console.log(`[blockchain-worker] content registration result sent jobId=${job.jobId}`);
+  if (!job) {
+    // 이미 전송 완료되어 삭제된 Job
     return;
   }
 
-  if (eventType === "TRANSACTION_FAILED") {
-    if (job.status !== "FAILED") return;
-    await reportFailure({
-      jobId: job.jobId,
-      requestedAt: job.createdAt.toISOString(),
-      failedStage: "BLOCKCHAIN",
-      reason: job.failureReason ?? "blockchain transaction failed",
-      proofType: "CONTENT_REGISTRATION",
-      registrationId: job.registrationId,
-    });
-    await contentRegistrationTransactionRepository.delete(job.id);
-    console.log(`[blockchain-worker] content registration failure sent jobId=${job.jobId}`);
+  // --------------------------------------------------
+  // Blockchain TX 성공
+  // --------------------------------------------------
+  if (job.status !== "CONFIRMED") {
     return;
   }
+
+  const request: Market.CompleteContentRegistrationRequest = {
+    jobId: job.jobId,
+    registrationId: job.registrationId,
+
+    encryptedData: job.encryptedData,
+    dataIv: job.dataIv,
+    encryptedDataKey: job.encryptedDataKey,
+    keyIv: job.keyIv,
+    keyAuthTag: job.keyAuthTag,
+
+    encryptionVersion: job.encryptionVersion,
+
+    keyHash: job.keyHash,
+    encryptedDataHash: job.encryptedDataHash,
+    contentHash: job.contentHash,
+
+    txHash: job.txHash ?? "",
+  };
+
+  await completeContentRegistrationWithRetry(request);
+
+  await deleteContentRegistrationTransactionWithRetry(job.jobId, job.id);
+
+  console.log(`[result-send-worker] content registration result sent jobId=${job.jobId}`);
 }
 
 async function processTradeApprovalResult(
   jobId: string,
-  eventType: OutboxEventType,
 ): Promise<void> {
+  // --------------------------------------------------
+  // Blockchain 단계 결과
+  // --------------------------------------------------
   const job = await tradeApprovalTransactionRepository.findByJobId(jobId);
-  if (!job) return;
 
-  if (eventType === "TRANSACTION_COMPLETED") {
-    if (job.status !== "CONFIRMED") return;
-    const request: Market.CompleteTradeApprovalRequest = {
-      jobId: job.jobId,
-      tradeId: job.purchaseId,
-      txHash: job.txHash ?? "",
-    };
-    await completeTradeApproval(request)
-    await tradeApprovalTransactionRepository.delete(job.id);
-    console.log(`[blockchain-worker] trade approval result sent (market TODO) jobId=${job.jobId}`);
+  if (!job) {
+    // 이미 전송 완료되어 삭제된 Job
     return;
   }
 
-  if (eventType === "TRANSACTION_FAILED") {
-    if (job.status !== "FAILED") return;
-    await reportFailure({
-      jobId: job.jobId,
-      requestedAt: job.createdAt.toISOString(),
-      failedStage: "BLOCKCHAIN",
-      reason: job.failureReason ?? "blockchain transaction failed",
-      proofType: "TRADE_APPROVAL",
-      purchaseId: job.purchaseId,
-    });
-    await tradeApprovalTransactionRepository.delete(job.id);
-    console.log(`[blockchain-worker] trade approval failure sent jobId=${job.jobId}`);
+  // --------------------------------------------------
+  // Blockchain TX 성공
+  // --------------------------------------------------
+  if (job.status !== "CONFIRMED") {
     return;
   }
+
+  const request: Market.CompleteTradeApprovalRequest = {
+    jobId: job.jobId,
+    tradeId: job.purchaseId,
+    txHash: job.txHash ?? "",
+  };
+
+  await completeTradeApprovalWithRetry(request);
+
+  await deleteTradeApprovalTransactionWithRetry(job.jobId, job.id);
+
+  console.log(`[result-send-worker] trade approval result sent jobId=${job.jobId}`);
 }
 
-async function reportFailure(message: JobFailedMessage): Promise<void> {
-  await sendBlockchainFailed(message);
+async function deleteContentRegistrationTransactionWithRetry(
+  jobId: string,
+  id: number,
+): Promise<void> {
+  await withDbRetry(
+    () => contentRegistrationTransactionRepository.delete(id),
+    {
+      operationName: `deleteContentRegistrationTransaction:${jobId}`,
+    },
+  );
+}
+
+async function deleteTradeApprovalTransactionWithRetry(
+  jobId: string,
+  id: number,
+): Promise<void> {
+  await withDbRetry(
+    () =>
+      tradeApprovalTransactionRepository.delete(id),
+    {
+      operationName:
+        `deleteTradeApprovalTransaction:${jobId}`,
+    },
+  );
+}
+
+async function completeContentRegistrationWithRetry(
+  request: Market.CompleteContentRegistrationRequest,
+): Promise<Market.CompleteContentRegistrationResponse> {
+  return withGrpcRetry(
+    () => completeContentRegistration(request),
+    {
+      operationName:
+        `completeContentRegistration:${request.jobId}`,
+    },
+  );
+}
+
+export async function completeTradeApprovalWithRetry(
+  request: Market.CompleteTradeApprovalRequest,
+): Promise<Market.CompleteTradeApprovalResponse> {
+  return withGrpcRetry(
+    () => completeTradeApproval(request),
+    {
+      operationName:
+        `completeTradeApproval:${request.jobId}`,
+    },
+  );
 }

@@ -102,6 +102,14 @@ export const tradeApprovalTransactionRepository = {
     });
   },
 
+  async deleteByJobId(jobId: string): Promise<void> {
+    await prisma.tradeApprovalTransaction.delete({
+      where: {
+        jobId,
+      },
+    });
+  },
+
   async delete(id: number) {
     return prisma.tradeApprovalTransaction.delete({
       where: { id, },

@@ -14,8 +14,8 @@ export const env = {
   // Kafka
   kafkaBrokers: (process.env.KAFKA_BROKERS ?? "localhost:9092").split(","),
   kafkaClientId: process.env.KAFKA_CLIENT_ID ?? "blockchain-worker",
-  kafkaFailureTopic: process.env.KAFKA_FAILURE_TOPIC ?? "PROOF_FAILED",
 
+  kafkaFailureTopic: process.env.KAFKA_FAILURE_TOPIC ?? "job_failed",
   kafkaTransactionTopic: process.env.KAFKA_TRANSACTION_TOPIC ?? "blockchain_transaction",
   kafkaReceiptTopic: process.env.KAFKA_RECEIPT_TOPIC ?? "blockchain_receipt",
   kafkaResultTopic: process.env.KAFKA_RESULT_TOPIC ?? "blockchain_result",

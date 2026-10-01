@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import type { TransactionOutbox, OutboxEventType } from "@prisma/client";
 
 export const contentRegistrationTransactionRepository = {
   async findPending() {

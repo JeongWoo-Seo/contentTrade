@@ -118,7 +118,7 @@ async function claimContentRegistrationJobWithRetry(
   return retryBase(
     () => claimContentRegistrationJob(jobId),
     {
-      operationName: `claim content registration jobId=${jobId}`
+      operationName: `claimContentRegistrationJob:${jobId}`,
     },
   );
 }
@@ -340,9 +340,7 @@ async function markContentRegistrationSubmittedWithRetry({
         txHash,
         nonce,
       }),
-    {
-      operationName: `mark content registration SUBMITTED ` + `jobId=${jobId}`,
-    },
+    { operationName: `mark content registration SUBMITTED jobId=${jobId}` },
   );
 }
 
@@ -396,21 +394,22 @@ async function failContentRegistrationJobWithRetry(
   job: {
     id: number;
     jobId: string;
+    registrationId: number;
+    createdAt: Date;
   },
   reason: string,
 ) {
-  return retryBase(
-    () => failContentRegistrationJob(job, reason),
-    {
-      operationName: `fail content registration jobId=${job.jobId}`
-    },
-  );
+  return retryBase(() => failContentRegistrationJob(job, reason), {
+    operationName: `fail content registration jobId=${job.jobId}`,
+  });
 }
 
 async function failContentRegistrationJob(
   job: {
     id: number;
     jobId: string;
+    registrationId: number;
+    createdAt: Date;
   },
   reason: string,
 ): Promise<void> {
@@ -440,6 +439,10 @@ async function failContentRegistrationJob(
       jobId: job.jobId,
       jobType: "CONTENT_REGISTRATION",
       eventType: "TRANSACTION_FAILED",
+      registrationId: job.registrationId,
+      requestedAt: job.createdAt,
+      failedStage: "BLOCKCHAIN",
+      failReason: reason,
     });
   });
 }

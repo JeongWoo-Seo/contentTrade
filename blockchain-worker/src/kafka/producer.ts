@@ -7,7 +7,13 @@ const kafka = new Kafka({
   brokers: env.kafkaBrokers,
 });
 
-const producer = kafka.producer();
+const producer = kafka.producer({
+  retry: {
+    retries: 5,
+    initialRetryTime: 300,
+    maxRetryTime: 30000,
+  },
+});
 
 export async function connectProducer(): Promise<void> {
   await producer.connect();

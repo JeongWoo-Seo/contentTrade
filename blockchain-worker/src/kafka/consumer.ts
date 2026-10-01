@@ -50,7 +50,7 @@ export async function startConsumer(options: ConsumerOptions): Promise<void> {
             `topic=${payload.topic} partition=${payload.partition}:`,
           error,
         );
-        // commit하지 않음 → 재처리 (restart/rebalance) + recovery worker가 DB 기준 복구
+        // commit하지 않음 → 재처리 (restart/rebalance)
       }
     },
   });

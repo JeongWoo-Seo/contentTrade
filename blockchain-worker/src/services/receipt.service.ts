@@ -1,15 +1,17 @@
-import { prisma } from "../lib/prisma.js";
 import { checkContentRegistrationReceipt, checkTradeApprovalReceipt } from "../blockchain/blockchain.service.js";
 import { contentRegistrationTransactionRepository } from "../repositories/content-registration.repository.js";
 import { tradeApprovalTransactionRepository } from "../repositories/trade-approval.repository.js";
-import { outboxRepository } from "../repositories/outbox.repository.js";
-import type { OutboxJobType } from "@prisma/client";
+import { transactionRepository } from "../repositories/transation.repository.js";
+import { sendMessage } from "../kafka/producer.js";
+import { TOPICS } from "../kafka/topics.js";
+import { withDbRetry } from "../utils/retry.js";
+import type {
+  ContentRegistrationTransaction,
+  TradeApprovalTransaction,
+  OutboxJobType,
+} from "@prisma/client";
+import type { ReceiptCheckResult } from "../blockchain/type.js";
 
-/**
- * RECEIPT_CHECK_REQUESTED 이벤트 처리.
- * SUBMITTED job의 receipt를 확인하여 CONFIRMED(+outbox) 또는 FAILED(타임아웃)로 전이한다.
- * receipt worker는 상태 확인하는 과정만 하지 때문에 status를 proseccing 으로 변경하지 않는다.
- */
 export async function processReceiptCheck(
   jobId: string,
   jobType: OutboxJobType,
@@ -31,63 +33,30 @@ async function processContentRegistrationReceipt(
 
   const receipt = await checkContentRegistrationReceipt(job.txHash!);
 
-  // 아직 pending
+  // 아직 블록에 포함되지 않음 → Receipt Kafka 재발행
   if (!receipt.confirmed && !receipt.failed) {
+    await publishReceiptCheckRetry({
+      jobId: job.jobId,
+      jobType: "CONTENT_REGISTRATION",
+    });
     return;
   }
 
   // 블록체인 실행 실패
   if (receipt.failed) {
-    await prisma.$transaction(async (tx) => {
-      const updated = await tx.contentRegistrationTransaction.updateMany({
-        where: {
-          id: job.id,
-          status: "SUBMITTED",
-        },
-        data: {
-          status: "FAILED",
-          failureReason: `Transaction reverted (status=${receipt.status})`,
-        },
-      });
-
-      if (updated.count === 0) return;
-
-      await outboxRepository.create(tx, {
-        jobId: job.jobId,
-        jobType: "CONTENT_REGISTRATION",
-        eventType: "TRANSACTION_FAILED",
-      });
-    });
+    await failContentRegistrationWithRetry(job, receipt);
 
     console.error(
       `[blockchain-worker] content registration FAILED ` +
-      `jobId=${job.jobId} txHash=${receipt.transactionHash}`,
+      `jobId=${job.jobId} ` +
+      `txHash=${receipt.transactionHash}`,
     );
 
     return;
   }
 
-  // 성공
-  await prisma.$transaction(async (tx) => {
-    const updated = await tx.contentRegistrationTransaction.updateMany({
-      where: {
-        id: job.id,
-        status: "SUBMITTED",
-      },
-      data: {
-        status: "CONFIRMED",
-        confirmedAt: new Date(),
-      },
-    });
-
-    if (updated.count === 0) return;
-
-    await outboxRepository.create(tx, {
-      jobId: job.jobId,
-      jobType: "CONTENT_REGISTRATION",
-      eventType: "TRANSACTION_COMPLETED",
-    });
-  });
+  // 블록체인 실행 성공
+  await confirmContentRegistrationWithRetry(job);
 
   console.log(
     `[blockchain-worker] content registration CONFIRMED ` +
@@ -103,69 +72,120 @@ async function processTradeApprovalReceipt(jobId: string): Promise<void> {
 
   const receipt = await checkTradeApprovalReceipt(job.txHash!);
 
-  // 아직 블록에 포함되지 않음
   if (!receipt.confirmed && !receipt.failed) {
+    await publishReceiptCheckRetry({
+      jobId: job.jobId,
+      jobType: "TRADE_APPROVAL",
+    });
     return;
   }
 
-  // 블록체인 실행 실패
   if (receipt.failed) {
-    await prisma.$transaction(async (tx) => {
-      const updated = await tx.tradeApprovalTransaction.updateMany({
-        where: {
-          id: job.id,
-          status: "SUBMITTED",
-        },
-        data: {
-          status: "FAILED",
-          failureReason: `Transaction reverted (status=${receipt.status})`,
-        },
-      });
-
-      if (updated.count === 0) {
-        return;
-      }
-
-      await outboxRepository.create(tx, {
-        jobId: job.jobId,
-        jobType: "TRADE_APPROVAL",
-        eventType: "TRANSACTION_FAILED",
-      });
-    });
+    await failTradeApprovalWithRetry(job, receipt);
 
     console.error(
       `[blockchain-worker] trade approval FAILED ` +
-      `jobId=${job.jobId} txHash=${receipt.transactionHash}`,
+      `jobId=${job.jobId} ` +
+      `txHash=${receipt.transactionHash}`,
     );
 
     return;
   }
 
-  // 블록체인 실행 성공
-  await prisma.$transaction(async (tx) => {
-    const updated = await tx.tradeApprovalTransaction.updateMany({
-      where: {
-        id: job.id,
-        status: "SUBMITTED",
-      },
-      data: {
-        status: "CONFIRMED",
-        confirmedAt: new Date(),
-      },
-    });
-
-    if (updated.count === 0) {
-      return;
-    }
-
-    await outboxRepository.create(tx, {
-      jobId: job.jobId,
-      jobType: "TRADE_APPROVAL",
-      eventType: "TRANSACTION_COMPLETED",
-    });
-  });
+  await confirmTradeApprovalWithRetry(job);
 
   console.log(
-    `[blockchain-worker] trade approval CONFIRMED jobId=${job.jobId}`,
+    `[blockchain-worker] trade approval CONFIRMED ` +
+    `jobId=${job.jobId}`,
+  );
+}
+
+/**
+ * pending receipt를 Receipt Kafka topic에 재발행한다.
+ * publish 실패 시 반드시 throw하여 Kafka consumer가 offset을 commit하지 않도록 한다.
+ */
+async function publishReceiptCheckRetry(
+  message: {
+    jobId: string;
+    jobType: OutboxJobType;
+  },
+): Promise<void> {
+  try {
+    await sendMessage(TOPICS.receipt, message.jobId, {
+      jobId: message.jobId,
+      jobType: message.jobType,
+    });
+
+    console.log(
+      `[blockchain-worker] ` +
+      `receipt check retry published ` +
+      `jobId=${message.jobId} ` +
+      `jobType=${message.jobType} ` +
+      `topic=${TOPICS.receipt}`,
+    );
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+
+    console.error(
+      `[blockchain-worker] ` +
+      `receipt check retry publish failed ` +
+      `jobId=${message.jobId} ` +
+      `jobType=${message.jobType} ` +
+      `topic=${TOPICS.receipt} ` +
+      `reason=${reason}`,
+    );
+
+    // 반드시 throw → Kafka consumer가 현재 offset을 commit하지 않음
+    throw error;
+  }
+}
+
+async function failContentRegistrationWithRetry(
+  job: ContentRegistrationTransaction,
+  receipt: ReceiptCheckResult,
+): Promise<boolean> {
+  const failureReason = `Transaction reverted (status=${receipt.status})`;
+
+  return withDbRetry(
+    () => transactionRepository.failContentRegistration(job, failureReason),
+    {
+      operationName: `failContentRegistration:${job.jobId}`,
+    },
+  );
+}
+
+async function failTradeApprovalWithRetry(
+  job: TradeApprovalTransaction,
+  receipt: ReceiptCheckResult,
+): Promise<boolean> {
+  const failureReason = `Transaction reverted (status=${receipt.status})`;
+
+  return withDbRetry(
+    () => transactionRepository.failTradeApproval(job, failureReason),
+    {
+      operationName: `failTradeApproval:${job.jobId}`,
+    },
+  );
+}
+
+async function confirmContentRegistrationWithRetry(
+  job: ContentRegistrationTransaction,
+): Promise<boolean> {
+  return withDbRetry(
+    () => transactionRepository.confirmContentRegistration(job),
+    {
+      operationName: `confirmContentRegistration:${job.jobId}`,
+    },
+  );
+}
+
+async function confirmTradeApprovalWithRetry(
+  job: TradeApprovalTransaction,
+): Promise<boolean> {
+  return withDbRetry(
+    () => transactionRepository.confirmTradeApproval(job),
+    {
+      operationName: `confirmTradeApproval:${job.jobId}`,
+    },
   );
 }

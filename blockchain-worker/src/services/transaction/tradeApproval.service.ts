@@ -133,12 +133,9 @@ export async function processTradeApproval(
 async function claimTradeApprovalJobWithRetry(
     jobId: string,
 ) {
-    return retryBase(
-        () => claimTradeApprovalJob(jobId),
-        {
-            operationName: `claim trade approval jobId=${jobId}`,
-        },
-    );
+    return retryBase(() => claimTradeApprovalJob(jobId), {
+        operationName: `claim trade approval jobId=${jobId}`,
+    });
 }
 
 async function claimTradeApprovalJob(
@@ -413,9 +410,7 @@ async function markTradeApprovalSubmittedWithRetry({
                 txHash,
                 nonce,
             }),
-        {
-            operationName: `mark trade approval SUBMITTED jobId=${jobId}`,
-        },
+        { operationName: `mark trade approval SUBMITTED jobId=${jobId}` },
     );
 }
 
@@ -478,25 +473,22 @@ async function failTradeApprovalJobWithRetry(
     job: {
         id: number;
         jobId: string;
+        purchaseId: number;
+        createdAt: Date;
     },
     reason: string,
 ) {
-    return retryBase(
-        () =>
-            failTradeApprovalJob(
-                job,
-                reason,
-            ),
-        {
-            operationName: `fail trade approval jobId=${job.jobId}`,
-        },
-    );
+    return retryBase(() => failTradeApprovalJob(job, reason), {
+        operationName: `fail trade approval jobId=${job.jobId}`,
+    });
 }
 
 async function failTradeApprovalJob(
     job: {
         id: number;
         jobId: string;
+        purchaseId: number;
+        createdAt: Date;
     },
     reason: string,
 ): Promise<void> {
@@ -526,6 +518,10 @@ async function failTradeApprovalJob(
             jobId: job.jobId,
             jobType: "TRADE_APPROVAL",
             eventType: "TRANSACTION_FAILED",
+            purchaseId: job.purchaseId,
+            requestedAt: job.createdAt,
+            failedStage: "BLOCKCHAIN",
+            failReason: reason,
         });
     });
 }
