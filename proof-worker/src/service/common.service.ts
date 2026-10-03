@@ -1,46 +1,50 @@
-import {sleep} from "../utils/sleep.js"
+import { sleep } from "../utils/sleep.js";
 
 export async function retryBase<T>(
   operation: () => Promise<T>,
   options: {
     operationName: string;
-    alertEveryRetries?: number;
+    maxAttempts?: number;
     initialDelayMs?: number;
     maxDelayMs?: number;
   },
 ): Promise<T> {
   const {
     operationName,
-    alertEveryRetries = 5,
+    maxAttempts = 5,
     initialDelayMs = 1_000,
     maxDelayMs = 30_000,
   } = options;
 
-  let retryCount = 0;
+  let attempt = 0;
 
-  while (true) {
+  while (attempt < maxAttempts) {
     try {
+      attempt++;
       return await operation();
     } catch (error) {
-      retryCount++;
+      if (attempt >= maxAttempts) {
+        console.error(
+          `[blockchain-worker] ` +
+            `operation=${operationName} ` +
+            `attempt=${attempt} ` +
+            `maxAttempts=${maxAttempts} ` +
+            `failed`,
+          error,
+        );
 
-      if (retryCount % alertEveryRetries === 0) {
-        // await alertMonitoring({
-        //   operation: operationName,
-        //   retryCount,
-        //   error,
-        // });
+        throw error;
       }
 
       const delay = Math.min(
-        initialDelayMs * 2 ** (retryCount - 1),
+        initialDelayMs * 2 ** (attempt - 1),
         maxDelayMs,
       );
 
       console.error(
         `[blockchain-worker] ` +
           `operation=${operationName} ` +
-          `retry=${retryCount} ` +
+          `attempt=${attempt} ` +
           `nextRetry=${delay}ms`,
         error,
       );
@@ -48,4 +52,6 @@ export async function retryBase<T>(
       await sleep(delay);
     }
   }
+
+  throw new Error(`Unexpected retry loop exit: ${operationName}`);
 }

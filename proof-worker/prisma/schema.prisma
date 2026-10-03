@@ -166,6 +166,11 @@ model TradeApprovalTransaction {
 // Outbox
 // ==========================================================
 
+enum FailedStage {
+  PROOF
+  BLOCKCHAIN
+}
+
 enum OutboxStatus {
   PENDING
   PUBLISHED
@@ -182,13 +187,14 @@ enum OutboxEventType {
   RECEIPT_CHECK_REQUESTED
   TRANSACTION_COMPLETED
   TRANSACTION_FAILED
+  PROOF_FAILED
 }
 
 model TransactionOutbox {
 
   id Int @id @default(autoincrement())
 
-  // 원본 Blockchain 작업 ID
+  // 원본 작업 ID
   jobId String @map("job_id") @db.VarChar(100)
 
   // 작업 종류
@@ -196,6 +202,21 @@ model TransactionOutbox {
 
   // 다음 단계에서 수행할 작업
   eventType OutboxEventType @map("event_type")
+
+  // 실패 이유
+  failReason String? @map("fail_reason") @db.Text
+
+  // 실패 발생 시각 (PROOF_REQUESTED 시각 근사치)
+  requestedAt DateTime? @map("requested_at")
+
+  // 실패 단계 (PROOF / BLOCKCHAIN)
+  failedStage FailedStage? @map("failed_stage")
+
+  // CONTENT_REGISTRATION일 때 사용
+  registrationId Int? @map("registration_id")
+
+  // TRADE_APPROVAL일 때 사용
+  purchaseId Int? @map("purchase_id")
 
   // 메시지큐 전달 상태
   status OutboxStatus @default(PENDING)
@@ -212,7 +233,6 @@ model TransactionOutbox {
   createdAt DateTime @default(now()) @map("created_at")
 
   updatedAt DateTime @updatedAt @map("updated_at")
-
 
   @@unique([jobId, eventType])
 

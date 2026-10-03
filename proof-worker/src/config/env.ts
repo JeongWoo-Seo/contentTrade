@@ -19,9 +19,8 @@ export const env = {
   kafkaGroupId: process.env.KAFKA_GROUP_ID ?? "proof-worker",
   kafkaClientIdPrefix: process.env.KAFKA_CLIENT_ID_PREFIX ?? "proof-worker",
 
-  kafkaRequestTopic: process.env.KAFKA_REQUEST_TOPIC ?? "PROOF_REQUESTED",
-  kafkaFailureTopic: process.env.KAFKA_FAILURE_TOPIC ?? "PROOF_FAILED",
-  kafkaTransactionTopic: process.env.KAFKA_TRANSACTION_TOPIC ?? "blockchain.transaction",
+  kafkaRequestTopic: process.env.KAFKA_REQUEST_TOPIC ?? "proof_requested",
+  kafkaTransactionTopic: process.env.KAFKA_TRANSACTION_TOPIC ?? "blockchain_transaction",
 
   // gRPC (market-server)
   marketGrpcHost: process.env.MARKET_GRPC_HOST ?? "localhost:50051",

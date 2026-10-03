@@ -94,9 +94,7 @@ export function encryptContent(
   if (plaintext.length > MAX_CONTENT_BYTES) {
     return {
       success: false,
-      reason:
-        `Content is too large: ${plaintext.length} bytes ` +
-        `(maximum ${MAX_CONTENT_BYTES} bytes)`,
+      reason: `Content is too large: ${plaintext.length} bytes (maximum ${MAX_CONTENT_BYTES} bytes)`,
     };
   }
 
@@ -238,7 +236,6 @@ export function encryptContent(
     result,
   };
 }
-
 
 /**
  * 데이터를 고정 크기 block으로 분할
