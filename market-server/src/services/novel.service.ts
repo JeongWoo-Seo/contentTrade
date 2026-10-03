@@ -1,7 +1,8 @@
-import { contentRegistrationRepository,contentRegistrationSourceRepository } from "../repositories/content-registration.repository.js";
+import { contentRegistrationRepository, contentRegistrationSourceRepository } from "../repositories/content-registration.repository.js";
 import { contentListRepository } from "../repositories/content-list.repository.js";
 import { ApiError } from "../utils/errors.js";
-import { sendProofRequested } from "../kafka/producer.js";
+import crypto from "node:crypto";
+import { withDbRetry } from "../utils/retry.js";
 
 const MAX_TITLE_LENGTH = 50;
 const MAX_DESCRIPTION_LENGTH = 200;
@@ -53,22 +54,22 @@ export const novelService = {
       throw new ApiError(400, "VALIDATION_ERROR", "price must be a non-negative integer");
     }
 
-    //db 등록
-    const registration = await contentRegistrationRepository.createWithSource({
-      title: trimmedTitle,
-      description: trimmedDescription,
-      authorId: userId,
-      price,
-      originalText: content,
-    });
+    // jobId 생성 (Outbox / Kafka / 이후 proof/blockchain 작업에서 공유)
+    const jobId = crypto.randomUUID();
 
-    //kafka 작업 지시
-    await sendProofRequested({
-      jobId: crypto.randomUUID(),
-      proofType: "CONTENT_REGISTRATION",
-      registrationId: registration.id,
-      requestedAt: new Date().toISOString(),
-    });
+    // DB transaction: ContentRegistration + Source + Outbox 생성 (전체를 retry)
+    const registration = await withDbRetry(
+      () =>
+        contentRegistrationRepository.createWithSource({
+          jobId,
+          title: trimmedTitle,
+          description: trimmedDescription,
+          authorId: userId,
+          price,
+          originalText: content,
+        }),
+      { operationName: `registerNovel:${jobId}` },
+    );
 
     return {
       id: registration.id,

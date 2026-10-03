@@ -18,7 +18,7 @@ export async function connectProofFailedConsumer(): Promise<void> {
     await consumer.connect();
 
     await consumer.subscribe({
-        topic: "PROOF_FAILED",
+        topic: env.kafkaFailureTopic,
         fromBeginning: false,
     });
 
@@ -29,14 +29,16 @@ export async function connectProofFailedConsumer(): Promise<void> {
             }
 
             try {
-                const data = JSON.parse(message.value.toString()) as JobFailedMessage;
+                const data = JSON.parse(
+                    message.value.toString()
+                ) as JobFailedMessage;
 
                 await handleProofFailed(data);
             } catch (error) {
-                console.error(
-                    "[market-server] failed to process PROOF_FAILED",
-                    error
-                );
+                console.error("[market-server] failed to process proof_failed", error);
+
+                // 오류 발생시 kafka message는 oommit 되지 않고 메시지를 재처리하도록 함
+                throw error;
             }
         },
     });

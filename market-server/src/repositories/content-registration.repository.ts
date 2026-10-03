@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { Prisma } from "@prisma/client";
+import { outboxRepository } from "./outbox.repository.js";
 
 export const contentRegistrationRepository = {
 
@@ -31,6 +32,7 @@ export const contentRegistrationRepository = {
   },
 
   async createWithSource(data: {
+    jobId: string;
     title: string;
     description: string;
     authorId: number;
@@ -55,6 +57,12 @@ export const contentRegistrationRepository = {
         },
         tx
       );
+
+      await outboxRepository.create(tx, {
+        jobId: data.jobId,
+        jobType: "CONTENT_REGISTRATION",
+        referenceId: registration.id,
+      });
 
       return registration;
     });

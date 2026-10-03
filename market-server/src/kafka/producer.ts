@@ -1,7 +1,14 @@
 import { kafka } from "./kafka.js";
 import {MarketKafkaMessage} from "./types.js"
+import { env } from "../config/env.js";
 
-const producer = kafka.producer();
+const producer = kafka.producer({
+  retry: {
+    retries: 5,
+    initialRetryTime: 300,
+    maxRetryTime: 30000,
+  },
+});
 
 export async function startProducer() {
   await producer.connect();
@@ -9,11 +16,15 @@ export async function startProducer() {
   console.log("Kafka producer connected");
 }
 
+export async function disconnectProducer(): Promise<void> {
+  await producer.disconnect();
+}
+
 export async function sendProofRequested(
   message: MarketKafkaMessage
 ): Promise<void> {
   await producer.send({
-    topic: "PROOF_REQUESTED",
+    topic: env.kafkaRequestTopic,
     messages: [
       {
         key: message.jobId,
@@ -22,20 +33,3 @@ export async function sendProofRequested(
     ],
   });
 }
-
-/*
-await sendProofRequested({
-  jobId: crypto.randomUUID(),
-  proofType: "CONTENT_REGISTRATION",
-  registrationId: 123,
-  requestedAt: new Date().toISOString(),
-});
-
-
-await sendProofRequested({
-  jobId: crypto.randomUUID(),
-  proofType: "TRADE_APPROVAL",
-  purchaseId: 456,
-  requestedAt: new Date().toISOString(),
-});
-*/
