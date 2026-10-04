@@ -46,36 +46,21 @@ model ContentRegistrationTransaction {
   // 암호화된 소설 데이터
   // ----------------------------------------------------------
 
-  // AES-256-CTR ciphertext
+  // CT_data 를 각각 32-byte BE 로 연결 (DATA_BLOCK_NUM × 32 bytes)
   encryptedData Bytes @map("encrypted_data")
 
-  // AES-CTR IV (16 bytes)
-  dataIv Bytes @map("data_iv")
-
-  // MASTER_KEY로 암호화된 Data Key (32 bytes)
-  encryptedDataKey Bytes @map("encrypted_data_key")
-
-  // Data Key 암호화에 사용된 IV (16 bytes)
-  keyIv Bytes @map("key_iv")
-
-  // HMAC-SHA256 결과 (32 bytes)
-  keyAuthTag Bytes @map("key_auth_tag")
-
-  // 암호화 포맷 버전
-  encryptionVersion Int @map("encryption_version")
-
   // ----------------------------------------------------------
-  // Content 검증
+  // Poseidon 공개값 (canonical 32-byte BE)
   // ----------------------------------------------------------
 
-  // Poseidon hash → 64자리 hex
-  keyHash String @map("key_hash") @db.VarChar(64)
+  // h_k = Poseidon(pk_own, dataEncKey)
+  hK Bytes @map("h_k")
 
-  // Poseidon hash → 64자리 hex
-  encryptedDataHash String @map("encrypted_data_hash") @db.VarChar(64)
+  // h_data = Poseidon(data[0..N-1])
+  hData Bytes @map("h_data")
 
-  // Poseidon hash → 64자리 hex
-  contentHash String @map("content_hash") @db.VarChar(64)
+  // h_ct = Poseidon(CT_data[0..N-1])
+  hCt Bytes @map("h_ct")
 
   // ----------------------------------------------------------
   // Blockchain
