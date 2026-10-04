@@ -11,7 +11,6 @@ export const contentListRepository = {
           description: true,
           price: true,
           status: true,
-          contentHash: true,
           author: { select: { username: true } },
           createdAt: true,
           updatedAt: true

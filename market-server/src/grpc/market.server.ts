@@ -55,14 +55,9 @@ export function createGrpcServer() {
                         jobId,
                         registrationId,
                         encryptedData,
-                        dataIv,
-                        encryptedDataKey,
-                        keyIv,
-                        keyAuthTag,
-                        encryptionVersion,
-                        keyHash,
-                        encryptedDataHash,
-                        contentHash,
+                        hK,
+                        hData,
+                        hCt,
                         txHash,
                     } = call.request;
 
@@ -72,17 +67,12 @@ export function createGrpcServer() {
                         `registrationId=${registrationId}`
                     );
 
-                    const result = await novelService.completeRegistration({
+                    await novelService.completeRegistration({
                         registrationId,
                         encryptedData,
-                        dataIv,
-                        encryptedDataKey,
-                        keyIv,
-                        keyAuthTag,
-                        encryptionVersion,
-                        encryptedDataHash,
-                        keyHash,
-                        contentHash,
+                        hK,
+                        hData,
+                        hCt,
                         txHash
                     });
 

@@ -6,7 +6,9 @@ import { withDbRetry } from "../utils/retry.js";
 
 const MAX_TITLE_LENGTH = 50;
 const MAX_DESCRIPTION_LENGTH = 200;
-const MAX_CONTENT_LENGTH = 5000;
+// RegistContent 회로의 DATA_BLOCK_NUM(8) × DATA_BLOCK_BYTES(31) - padding(4 byte length + 1 byte marker) = 243 bytes.
+// proof-worker의 encryptContent와 동일한 제한값.
+const MAX_CONTENT_BYTES = 243;
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
@@ -47,8 +49,8 @@ export const novelService = {
     if (typeof content !== "string" || !content.trim()) {
       throw new ApiError(400, "VALIDATION_ERROR", "content is required");
     }
-    if (content.length > MAX_CONTENT_LENGTH) {
-      throw new ApiError(400, "VALIDATION_ERROR", `content must be at most ${MAX_CONTENT_LENGTH} characters`);
+    if (Buffer.byteLength(content, "utf8") > MAX_CONTENT_BYTES) {
+      throw new ApiError(400, "VALIDATION_ERROR", `content must be at most ${MAX_CONTENT_BYTES} bytes (UTF-8)`);
     }
     if (typeof price !== "number" || !Number.isInteger(price) || price < 0) {
       throw new ApiError(400, "VALIDATION_ERROR", "price must be a non-negative integer");
@@ -99,39 +101,24 @@ export const novelService = {
   async completeRegistration({
     registrationId,
     encryptedData,
-    dataIv,
-    encryptedDataKey,
-    keyIv,
-    keyAuthTag,
-    encryptionVersion,
-    contentHash,
-    keyHash,
-    encryptedDataHash,
+    hK,
+    hData,
+    hCt,
     txHash
   }: {
     registrationId: number;
     encryptedData: Uint8Array;
-    dataIv: Uint8Array;
-    keyIv: Uint8Array
-    keyAuthTag: Uint8Array;
-    encryptedDataKey: Uint8Array;
-    encryptionVersion: number;
-    contentHash: string;
-    keyHash: string;
-    encryptedDataHash: string,
+    hK: Uint8Array;
+    hData: Uint8Array;
+    hCt: Uint8Array;
     txHash: string;
   }) {
     return contentRegistrationRepository.completeRegistration({
       registrationId,
       encryptedData,
-      dataIv,
-      keyIv,
-      keyAuthTag,
-      encryptedDataKey,
-      encryptionVersion,
-      contentHash,
-      keyHash,
-      encryptedDataHash,
+      hK,
+      hData,
+      hCt,
       txHash,
     });
   },

@@ -33,10 +33,11 @@ async function createContentList(authorId: number, overrides: Partial<Record<str
       authorId,
       price: (overrides.price as number) ?? 1000,
       description: (overrides.description as string) ?? "설명",
-      encryptedData: "dummy",
-      iv: "dummy-iv",
-      authTag: "dummy-tag",
-      encryptedDataKey: "dummy-key",
+      encryptedData: new Uint8Array(256),
+      hK: new Uint8Array(32),
+      hData: new Uint8Array(32),
+      hCt: new Uint8Array(32),
+      txHash: `0x${"0".repeat(64)}`,
       status: (overrides.status as never) ?? "ACTIVE",
     },
   });
@@ -49,7 +50,6 @@ async function createRegistration(authorId: number, overrides: Partial<Record<st
       description: (overrides.description as string) ?? "설명",
       authorId,
       price: (overrides.price as number) ?? 1000,
-      content: (overrides.content as string) ?? "본문",
       status: (overrides.status as never) ?? "PENDING",
       rejectionReason: overrides.rejectionReason as string | null | undefined,
       contentId: overrides.contentId as number | null | undefined,
@@ -126,16 +126,24 @@ describe("POST /api/novels", () => {
     assert.equal(res.status, 400);
   });
 
-  it("rejects content over 5000 chars", async () => {
-    const res = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "a".repeat(5001) }));
+  it("rejects content over 243 bytes", async () => {
+    const res = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "a".repeat(244) }));
     assert.equal(res.status, 400);
   });
 
-  it("accepts Korean content at exactly 5000 chars and rejects 5001", async () => {
-    const ok = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "가".repeat(5000) }));
+  it("accepts content at exactly 243 bytes and rejects 244", async () => {
+    const ok = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "a".repeat(243) }));
     assert.equal(ok.status, 201);
 
-    const over = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "가".repeat(5001) }));
+    const over = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "a".repeat(244) }));
+    assert.equal(over.status, 400);
+  });
+
+  it("rejects Korean content over 243 bytes (multi-byte boundary)", async () => {
+    const ok = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "가".repeat(81) }));
+    assert.equal(ok.status, 201);
+
+    const over = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "가".repeat(82) }));
     assert.equal(over.status, 400);
   });
 

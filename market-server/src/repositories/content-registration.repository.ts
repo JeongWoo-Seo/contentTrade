@@ -71,26 +71,16 @@ export const contentRegistrationRepository = {
   async completeRegistration({
     registrationId,
     encryptedData,
-    dataIv,
-    keyIv,
-    keyAuthTag,
-    encryptedDataKey,
-    encryptionVersion,
-    contentHash,
-    keyHash,
-    encryptedDataHash,
+    hK,
+    hData,
+    hCt,
     txHash,
   }: {
     registrationId: number;
     encryptedData: Uint8Array;
-    dataIv: Uint8Array;
-    encryptedDataKey: Uint8Array;
-    keyIv: Uint8Array;
-    keyAuthTag: Uint8Array;
-    encryptionVersion: number;
-    keyHash: string;
-    encryptedDataHash: string;
-    contentHash: string;
+    hK: Uint8Array;
+    hData: Uint8Array;
+    hCt: Uint8Array;
     txHash: string;
   }) {
     return prisma.$transaction(async (tx) => {
@@ -147,14 +137,9 @@ export const contentRegistrationRepository = {
           description: registration.description,
           price: registration.price,
           encryptedData: new Uint8Array(encryptedData),
-          dataIv: new Uint8Array(dataIv),
-          keyAuthTag: new Uint8Array(keyAuthTag),
-          encryptedDataKey: new Uint8Array(encryptedDataKey),
-          keyIv: new Uint8Array(keyIv),
-          encryptionVersion,
-          contentHash,
-          keyHash,
-          encryptedDataHash,
+          hK: new Uint8Array(hK),
+          hData: new Uint8Array(hData),
+          hCt: new Uint8Array(hCt),
           status: "ACTIVE",
           txHash,
         },
