@@ -153,17 +153,26 @@ model ContentList {
   encryptedData Bytes @map("encrypted_data")
 
   // ----------------------------------------------------------
-  // Poseidon 공개값 (canonical 32-byte BE)
+  // 복호화 파라미터
+  // ----------------------------------------------------------
+
+  // dataEncKey를 서버 master key로 암호화한 값
+  encryptedDataKey Bytes @map("encrypted_data_key")
+  ctR String @map("ct_r") @db.VarChar(80)
+  encryptionVersion Int @default(1) @map("encryption_version")
+
+  // ----------------------------------------------------------
+  // Poseidon 공개값 (canonical 64-char hex string)
   // ----------------------------------------------------------
 
   // h_k = Poseidon(pk_own, dataEncKey)
-  hK Bytes @map("h_k")
+  hK String @map("h_k") @db.VarChar(80)
 
   // h_data = Poseidon(data[0..N-1])
-  hData Bytes @map("h_data")
+  hData String @map("h_data") @db.VarChar(80)
 
   // h_ct = Poseidon(CT_data[0..N-1])
-  hCt Bytes @map("h_ct")
+  hCt String @map("h_ct") @db.VarChar(80)
 
   // ----------------------------------------------------------
   // Content 상태

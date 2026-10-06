@@ -101,6 +101,9 @@ export const novelService = {
   async completeRegistration({
     registrationId,
     encryptedData,
+    encryptedDataKey,
+    ctR,
+    encryptionVersion,
     hK,
     hData,
     hCt,
@@ -108,14 +111,20 @@ export const novelService = {
   }: {
     registrationId: number;
     encryptedData: Uint8Array;
-    hK: Uint8Array;
-    hData: Uint8Array;
-    hCt: Uint8Array;
+    encryptedDataKey: Uint8Array;
+    ctR: string;
+    encryptionVersion: number;
+    hK: string;
+    hData: string;
+    hCt: string;
     txHash: string;
   }) {
     return contentRegistrationRepository.completeRegistration({
       registrationId,
       encryptedData,
+      encryptedDataKey,
+      ctR,
+      encryptionVersion,
       hK,
       hData,
       hCt,
