@@ -49,6 +49,9 @@ async function processContentRegistrationResult(
     registrationId: job.registrationId,
 
     encryptedData: job.encryptedData,
+    encryptedDataKey: job.encryptedDataKey,
+    ctR: job.ctR,
+    encryptionVersion: job.encryptionVersion,
     hK: job.hK,
     hData: job.hData,
     hCt: job.hCt,
