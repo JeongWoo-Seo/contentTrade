@@ -11,7 +11,7 @@ export interface CreateTradeApprovalInput {
   jobId: string;
   purchaseId: number;
   proof: string;
-  publicSignals: string[];
+  publicSignals: string;
 }
 
 export const transactionRepository = {
@@ -20,14 +20,6 @@ export const transactionRepository = {
   ) {
     return prisma.$transaction(async (tx) => {
       const encryption = data.ContentRegistrationProof.encryption;
-
-      const encryptedData = Uint8Array.from(
-        Buffer.concat(
-          encryption.encryptedDataBlocks.map((block) =>
-            Buffer.from(block),
-          ),
-        ),
-      );
 
       const transaction = await tx.contentRegistrationTransaction.create({
         data: {
@@ -38,18 +30,14 @@ export const transactionRepository = {
           proof: data.ContentRegistrationProof.proof,
           publicSignals: JSON.stringify(data.ContentRegistrationProof.publicSignals),
 
-          // 암호화 데이터
-          encryptedData,
-          dataIv: Uint8Array.from(encryption.dataIv),
-          encryptedDataKey: Uint8Array.from(encryption.encryptedDataKey),
-          keyIv: Uint8Array.from(encryption.keyIv),
-          keyAuthTag: Uint8Array.from(encryption.keyAuthTag),
+          // 암호화 데이터 (CT_data concat + Poseidon 공개값 + 복호화 파라미터)
+          encryptedData: encryption.encryptedData,
+          encryptedDataKey: encryption.encryptedDataKey,
+          ctR: encryption.ctR,
           encryptionVersion: encryption.encryptionVersion,
-
-          // Hash
-          keyHash: encryption.keyHash,
-          encryptedDataHash: encryption.encryptedDataHash,
-          contentHash: encryption.contentHash,
+          hK: encryption.hK,
+          hData: encryption.hData,
+          hCt: encryption.hCt,
 
           status: "PENDING",
         },
@@ -74,7 +62,7 @@ export const transactionRepository = {
         jobId: data.jobId,
         purchaseId: data.purchaseId,
         proof: data.proof,
-        publicSignals: JSON.stringify(data.publicSignals),
+        publicSignals: data.publicSignals,
         status: "PENDING",
       },
     });

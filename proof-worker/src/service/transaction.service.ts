@@ -16,7 +16,7 @@ export interface CreateContentRegistrationProofInput {
 
 export interface ContentRegistrationProofResult {
     proof: string;
-    publicSignals: string[];
+    publicSignals: string;
     encryption: ContentEncryptionResult;
 }
 

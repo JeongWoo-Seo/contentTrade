@@ -1,47 +1,70 @@
-import crypto from "node:crypto";
+import {
+  BN254_SCALAR_FIELD,
+  DATA_BLOCK_BYTES,
+  DATA_BLOCK_NUM,
+  bytes31ToField,
+  fieldToBytes31,
+  fieldToBytes32,
+  parseFieldElement,
+  poseidon2,
+  poseidonHash484,
+  randomFieldElement,
+} from "./poseidon.js";
 import { env } from "../config/env.js";
-import { hashBlocks, calculateKeyHash } from "./poseidon.js";
+import { wrapDataEncKey } from "./key-wrapping.js";
 
-const AES_KEY_LENGTH = 32;
-const AES_IV_LENGTH = 16;
+// ------------------------------------------------------------
+// RegistContent 회로와 일치하는 콘텐츠 등록 암호화
+//
+//   data[i]   = 31-byte plaintext block → bigint
+//   hash_i    = Poseidon(dataEncKey + i, CT_r)
+//   CT_data[i] = (data[i] + hash_i) mod r
+//   h_k       = Poseidon(pk_own, dataEncKey)
+//   h_data    = Poseidon(data[0..N-1])
+//   h_ct      = Poseidon(CT_data[0..N-1])
+//
+// 공개 신호 순서: [pk_own, h_k, h_ct, h_data]
+// ------------------------------------------------------------
 
-const ENCRYPTION_VERSION = 1;
+// 원문 byte 길이를 저장하기 위한 3 bytes
+const PLAIN_TEXT_LENGTH_BYTES = 3;
 
-const MAX_CONTENT_CHARS = 5000;
+// [4 bytes length][plaintext][0x80][0x00 ...] padding 후 총 byte 수
+const PADDED_CONTENT_BYTES = DATA_BLOCK_NUM * DATA_BLOCK_BYTES;
 
-// UTF-8에서 문자 1개가 최대 4 bytes
-const MAX_CONTENT_BYTES = MAX_CONTENT_CHARS * 4;
+// 실제 plaintext 최대 byte 수
+const MAX_CONTENT_BYTES = PADDED_CONTENT_BYTES - PLAIN_TEXT_LENGTH_BYTES - 1;
 
-// ZK 고정 블록 크기
-const ZK_BLOCK_SIZE = 32;
+// 암호화 포맷 버전 (현재 1)
+export const ENCRYPTION_VERSION = 1;
 
-// 원문 길이를 저장하기 위한 4 bytes
-const PLAIN_TEXT_LENGTH_BYTES = 4;
-
-// 길이 정보 + plaintext + padding marker
-const MAX_PADDED_CONTENT_BYTES = MAX_CONTENT_BYTES + PLAIN_TEXT_LENGTH_BYTES + 1;
-
-// ZK block에 맞춰 올림
-const PADDED_CONTENT_BYTES = Math.ceil(MAX_PADDED_CONTENT_BYTES / ZK_BLOCK_SIZE) * ZK_BLOCK_SIZE;
-
-const MAX_PADDED_CONTENT_BLOCKS = PADDED_CONTENT_BYTES / ZK_BLOCK_SIZE;
-
+interface ContentRegistrationWitness {
+    dataEncKey: string;
+    data: string[];
+    CT_data: string[];
+    CT_r: string;
+}
 
 export interface ContentEncryptionResult {
-  plaintextBlocks: Uint8Array[];
-  encryptedDataBlocks: Uint8Array[];
+  pk_own: string;
+  // CT_data 를 각각 32-byte big-endian 으로 연결 (DATA_BLOCK_NUM × 32 bytes)
+  encryptedData: Uint8Array<ArrayBuffer>;
 
-  dataIv: Uint8Array;
+  // dataEncKey를 master key로 AES-256-GCM 암호화한 값 ([IV(12)][authTag(16)][ciphertext(32)])
+  encryptedDataKey: Uint8Array<ArrayBuffer>;
+  // Poseidon 암호화 랜덤값 CT_r (canonical 64-char hex string)
+  ctR: string;
 
-  encryptedDataKey: Uint8Array;
-  keyIv: Uint8Array;
-  keyAuthTag: Uint8Array;
-
+  // 암호화 포맷 버전
   encryptionVersion: number;
 
-  keyHash: string;
-  encryptedDataHash: string;
-  contentHash: string;
+  // Poseidon 공개값 (canonical 64-char hex string)
+  hK: string;
+  hData: string;
+  hCt: string;
+
+  // 회로 witness (private ZK input, BigInt → decimal string)
+  witness: ContentRegistrationWitness;
 }
 
 export type ContentEncryptionOutcome =
@@ -54,12 +77,10 @@ export type ContentEncryptionOutcome =
     reason: string;
   };
 
-
 export function encryptContent(
   originalText: string,
   authorPkOwn: string,
 ): ContentEncryptionOutcome {
-
   if (!originalText) {
     return {
       success: false,
@@ -74,21 +95,6 @@ export function encryptContent(
     };
   }
 
-  if (!env.masterKey) {
-    throw new Error("MASTER_KEY is not configured");
-  }
-
-  // ==========================================================
-  // 0. 입력 검증
-  // ==========================================================
-
-  if ([...originalText].length > MAX_CONTENT_CHARS) {
-    return {
-      success: false,
-      reason: `Content is too long: maximum ${MAX_CONTENT_CHARS} characters`,
-    };
-  }
-
   const plaintext = Buffer.from(originalText, "utf8");
 
   if (plaintext.length > MAX_CONTENT_BYTES) {
@@ -99,136 +105,76 @@ export function encryptContent(
   }
 
   // ==========================================================
-  // 1. MASTER KEY
-  // ==========================================================
-
-  const masterKey = Buffer.from(env.masterKey, "base64");
-
-  if (masterKey.length !== AES_KEY_LENGTH) {
-    throw new Error("MASTER_KEY must be 32 bytes");
-  }
-
-  // ==========================================================
-  // 2. Padding
+  // 1. Padding → 31-byte block 분할
   // ==========================================================
 
   const paddedPlaintext = padPlaintext(plaintext);
+  const blocks = splitInto31ByteBlocks(paddedPlaintext);
 
-  if (paddedPlaintext.length !== PADDED_CONTENT_BYTES) {
-    throw new Error(`Invalid padded plaintext length: ${paddedPlaintext.length}`);
-  }
-
-  // ==========================================================
-  // 3. Plaintext → ZK blocks
-  // ==========================================================
-
-  const plaintextBlocks = splitIntoBlocks(paddedPlaintext);
-
-  if (plaintextBlocks.length !== MAX_PADDED_CONTENT_BLOCKS) {
-    throw new Error(
-      `Invalid block count: expected ` +
-      `${MAX_PADDED_CONTENT_BLOCKS}, got ` +
-      `${plaintextBlocks.length}`,
-    );
-  }
+  const data = blocks.map((block) => bytes31ToField(block));
 
   // ==========================================================
-  // 4. AES-256-CTR
+  // 2. 암호화 키 + randomness
   // ==========================================================
 
-  const dataKey = crypto.randomBytes(AES_KEY_LENGTH);
-  const dataIv = crypto.randomBytes(AES_IV_LENGTH);
-  const cipher = crypto.createCipheriv(
-    "aes-256-ctr",
-    dataKey,
-    dataIv,
-  );
-
-  const encryptedDataBuffer = Buffer.concat([
-    cipher.update(paddedPlaintext),
-    cipher.final(),
-  ]);
-
-  if (encryptedDataBuffer.length !== paddedPlaintext.length) {
-    throw new Error("Encrypted data length mismatch");
-  }
+  const dataEncKey = randomFieldElement();
+  const CT_r = randomFieldElement();
 
   // ==========================================================
-  // 5. Encrypted data → ZK blocks
+  // 3. h_k = Poseidon(pk_own, dataEncKey)
   // ==========================================================
 
-  const encryptedDataBlocks = splitIntoBlocks(encryptedDataBuffer);
-  if (encryptedDataBlocks.length !== MAX_PADDED_CONTENT_BLOCKS) {
-    throw new Error(
-      `Invalid encrypted block count: expected ` +
-      `${MAX_PADDED_CONTENT_BLOCKS}, got ` +
-      `${encryptedDataBlocks.length}`,
-    );
-  }
+  const pkOwnField = parseFieldElement(authorPkOwn);
+  const h_k = poseidon2(pkOwnField, dataEncKey);
 
   // ==========================================================
-  // 6. Poseidon Hash
-  //
-  // 32-byte block
-  //   ↓
-  // 16 bytes + 16 bytes
-  //   ↓
-  // Poseidon(2)
-  //   ↓
-  // rolling Poseidon(2)
-  // ==========================================================
-  const contentHash = hashBlocks(plaintextBlocks).toString(16).padStart(64, "0");
-  const encryptedDataHash = hashBlocks(encryptedDataBlocks).toString(16).padStart(64, "0");
-  const keyHash = calculateKeyHash(authorPkOwn, dataKey).toString(16).padStart(64, "0");
-
-  // ==========================================================
-  // 7. Data Key를 MASTER_KEY로 암호화
+  // 4. CT_data[i] = (data[i] + Poseidon(dataEncKey + i, CT_r)) mod r
   // ==========================================================
 
-  const keyIv = crypto.randomBytes(AES_IV_LENGTH);
-  const keyCipher = crypto.createCipheriv(
-    "aes-256-ctr",
-    masterKey,
-    keyIv,
-  );
+  const CT_data = data.map((d, i) => {
+    const hash_i = poseidon2((dataEncKey + BigInt(i)) % BN254_SCALAR_FIELD, CT_r);
 
-  const encryptedDataKeyBuffer = Buffer.concat([
-    keyCipher.update(dataKey),
-    keyCipher.final(),
-  ]);
-
-  if (encryptedDataKeyBuffer.length !== AES_KEY_LENGTH) {
-    throw new Error("Encrypted data key length mismatch");
-  }
+    return (d + hash_i) % BN254_SCALAR_FIELD;
+  });
 
   // ==========================================================
-  // 8. Data Key 무결성 검증
+  // 5. h_data = Poseidon(data[0..N-1])
+  //    h_ct   = Poseidon(CT_data[0..N-1])
   // ==========================================================
 
-  const keyAuthTag = crypto
-    .createHmac("sha256", masterKey)
-    .update(keyIv)
-    .update(encryptedDataKeyBuffer)
-    .digest();
+  const h_data = poseidonHash484(data);
+  const h_ct = poseidonHash484(CT_data);
 
   // ==========================================================
-  // 9. 결과
+  // 6. dataEncKey 서버-side key wrapping (AES-256-GCM)
   // ==========================================================
+
+  const masterKey = Buffer.from(env.masterKey, "base64");
+  const encryptedDataKey = wrapDataEncKey(dataEncKey, masterKey);
+
+  // ==========================================================
+  // 7. 결과 (witness + public signals + DB 저장용)
+  // ==========================================================
+
+  const witness: ContentRegistrationWitness = {
+    dataEncKey: dataEncKey.toString(),
+    data: data.map((d) => d.toString()),
+    CT_data: CT_data.map((c) => c.toString()),
+    CT_r: CT_r.toString(),
+  };
 
   const result: ContentEncryptionResult = {
-    plaintextBlocks,
-    encryptedDataBlocks,
-
-    dataIv,
-    encryptedDataKey: encryptedDataKeyBuffer,
-    keyIv,
-    keyAuthTag,
-
+    pk_own: pkOwnField.toString(),
+    encryptedData: Uint8Array.from(
+      Buffer.concat(CT_data.map((c) => Buffer.from(fieldToBytes32(c)))),
+    ),
+    encryptedDataKey,
+    ctR: CT_r.toString(),
     encryptionVersion: ENCRYPTION_VERSION,
-
-    keyHash,
-    encryptedDataHash,
-    contentHash,
+    hK: h_k.toString(),
+    hData: h_data.toString(),
+    hCt: h_ct.toString(),
+    witness,
   };
 
   return {
@@ -238,86 +184,72 @@ export function encryptContent(
 }
 
 /**
- * 데이터를 고정 크기 block으로 분할
+ * 암호문(CT_data) + dataEncKey + CT_r 로 원문을 복원한다.
+ * round-trip 검증용.
  */
-function splitIntoBlocks(
-  data: Buffer,
-): Uint8Array[] {
-
-  if (data.length % ZK_BLOCK_SIZE !== 0) {
-    throw new Error(`Data length must be multiple of ${ZK_BLOCK_SIZE} bytes`,
+export function decryptContent(
+  encryptedData: Uint8Array,
+  dataEncKey: bigint,
+  CT_r: bigint,
+): Buffer {
+  if (encryptedData.length !== DATA_BLOCK_NUM * 32) {
+    throw new Error(
+      `Invalid encrypted data length: ${encryptedData.length}`,
     );
   }
 
-  const blocks: Uint8Array[] = [];
+  const CT_data: bigint[] = [];
 
-  for (let offset = 0; offset < data.length; offset += ZK_BLOCK_SIZE) {
-    blocks.push(
-      Uint8Array.from(
-        data.subarray(
-          offset,
-          offset + ZK_BLOCK_SIZE,
-        ),
-      ),
-    );
+  for (let i = 0; i < DATA_BLOCK_NUM; i++) {
+    const slice = encryptedData.subarray(i * 32, (i + 1) * 32);
+
+    let value = 0n;
+
+    for (const byte of slice) {
+      value = (value << 8n) | BigInt(byte);
+    }
+
+    CT_data.push(value);
   }
 
-  return blocks;
+  const data = CT_data.map((c, i) => {
+    const hash_i = poseidon2(
+      (dataEncKey + BigInt(i)) % BN254_SCALAR_FIELD,
+      CT_r,
+    );
+
+    return (c - hash_i + BN254_SCALAR_FIELD) % BN254_SCALAR_FIELD;
+  });
+
+  const padded = Buffer.concat(
+    data.map((d) => Buffer.from(fieldToBytes31(d))),
+  );
+
+  return unpadPlaintext(padded);
 }
 
-
 /**
- * Padding format
- * [4 bytes plaintext length][plaintext][0x80][0x00 ...]
+ * [4 bytes length][plaintext][0x80][0x00 ...] 로 padding.
  */
-function padPlaintext(
-  plaintext: Buffer,
-): Buffer {
-
-  if (plaintext.length > MAX_CONTENT_BYTES) {
-    throw new Error(`Content is too large: ${plaintext.length} bytes`);
-  }
-
+function padPlaintext(plaintext: Buffer): Buffer {
   const padded = Buffer.alloc(PADDED_CONTENT_BYTES, 0x00);
 
-  // ==========================================================
-  // 1. 원문 byte 길이
-  // ==========================================================
-
-  // 처음 4 bytes에 원문의 길이 추가
   padded.writeUInt32BE(plaintext.length, 0);
-
-  // ==========================================================
-  // 2. 실제 plaintext
-  // ==========================================================
 
   plaintext.copy(padded, PLAIN_TEXT_LENGTH_BYTES);
 
-  // ==========================================================
-  // 3. 종료 marker
-  // ==========================================================
-
-  const markerIndex = PLAIN_TEXT_LENGTH_BYTES + plaintext.length;
-  padded[markerIndex] = 0x80;
+  padded[PLAIN_TEXT_LENGTH_BYTES + plaintext.length] = 0x80;
 
   return padded;
 }
 
-
 /**
- * Padding 제거
+ * padding 제거.
  */
-function unpadPlaintext(
-  padded: Buffer,
-): Buffer {
-
+function unpadPlaintext(padded: Buffer): Buffer {
   if (padded.length !== PADDED_CONTENT_BYTES) {
     throw new Error("Invalid padded plaintext length");
   }
-
-  // ==========================================================
-  // 1. 원문 byte 길이
-  // ==========================================================
 
   const plaintextLength = padded.readUInt32BE(0);
 
@@ -325,19 +257,11 @@ function unpadPlaintext(
     throw new Error("Invalid plaintext length");
   }
 
-  // ==========================================================
-  // 2. marker 위치
-  // ==========================================================
-
   const markerIndex = PLAIN_TEXT_LENGTH_BYTES + plaintextLength;
 
   if (padded[markerIndex] !== 0x80) {
     throw new Error("Invalid padding marker");
   }
-
-  // ==========================================================
-  // 3. marker 이후는 전부 0x00
-  // ==========================================================
 
   for (let i = markerIndex + 1; i < padded.length; i++) {
     if (padded[i] !== 0x00) {
@@ -345,12 +269,26 @@ function unpadPlaintext(
     }
   }
 
-  // ==========================================================
-  // 4. plaintext
-  // ==========================================================
+  return padded.subarray(PLAIN_TEXT_LENGTH_BYTES, markerIndex);
+}
 
-  return padded.subarray(
-    PLAIN_TEXT_LENGTH_BYTES,
-    markerIndex,
-  );
+/**
+ * 31-byte 고정 크기 block 으로 분할.
+ */
+function splitInto31ByteBlocks(data: Buffer): Uint8Array[] {
+  if (data.length !== PADDED_CONTENT_BYTES) {
+    throw new Error(`Data length must be ${PADDED_CONTENT_BYTES} bytes`);
+  }
+
+  const blocks: Uint8Array[] = [];
+
+  for (let offset = 0; offset < data.length; offset += DATA_BLOCK_BYTES) {
+    blocks.push(
+      Uint8Array.from(
+        data.subarray(offset, offset + DATA_BLOCK_BYTES),
+      ),
+    );
+  }
+
+  return blocks;
 }
