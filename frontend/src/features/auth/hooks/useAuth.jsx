@@ -1,11 +1,10 @@
 import { createContext, useCallback, useContext, useState } from 'react';
-import { Wallet } from 'ethers';
 import { generateSkOwn, deriveAccount } from '../crypto/keys.js';
 import { deriveAesKey, generateSalt } from '../crypto/kdf.js';
 import { encryptString, decryptString } from '../crypto/aescipher.js';
 import { saveAccount, getAccount } from '../crypto/indexeddb.js';
 import { setSecrets, clearSecrets, getSecrets } from '../crypto/session.js';
-import { setWallet, clearWallet, getWallet } from '../crypto/walletStore.js';
+import { setWallet, clearWallet, getWallet, getTestWallet , getNextTestAccountIndex } from '../crypto/walletStore.js';
 import { bytesToHex, hexToBytes } from '../crypto/util.js';
 import { authService } from '../services/authService.js';
 
@@ -22,7 +21,8 @@ export function AuthProvider({ children }) {
 
   const signup = useCallback(async ({ username, password }) => {
     // 1. generate an Ethereum test wallet. address -> server, privateKey -> encrypted locally.
-    const wallet = Wallet.createRandom();
+    const accountIndex = getNextTestAccountIndex();
+    const wallet = getTestWallet(accountIndex);
 
     // 2. generate sk_own (content encryption secret).
     const skOwn = generateSkOwn();
@@ -57,7 +57,7 @@ export function AuthProvider({ children }) {
       addr: account.addr,
     });
 
-    setState({status: 'unauthenticated'});
+    setState({ status: 'unauthenticated' });
   }, []);
 
   const login = useCallback(async ({ username, password }) => {
@@ -99,7 +99,7 @@ export function AuthProvider({ children }) {
       setWallet({ address: record.walletAddress, privateKey });
     }
 
-   setState({status: 'authenticated',username,walletAddress: serverWalletAddress});
+    setState({ status: 'authenticated', username, walletAddress: serverWalletAddress });
   }, []);
 
   const logout = useCallback(async () => {
