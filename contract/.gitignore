@@ -1,0 +1,11 @@
+# Foundry build artifacts
+out/*
+cache/*
+broadcast/*
+
+# dependencies (forge install / soldeer)
+lib/
+
+deployments/*
+
+.env
