@@ -1,20 +1,17 @@
 import { prisma } from "../../lib/prisma.js";
 import { outboxRepository } from "../../repositories/outbox.repository.js";
-import { retryBase } from "../common.service.js";
+import { retryWithMaxAttempts } from "../common.service.js";
+import { withDbRetry } from "../../utils/retry.js";
 import {
   simulateContentRegistration as simulateOnChain,
-  signTransaction,
-  broadcastTransaction,
-  getTransaction,
   getPendingNonce,
   estimateGas,
   addGasMargin,
   getEip1559Fee
 } from "../../blockchain/blockchain.service.js";
-import { sleep } from "../../utils/sleep.js";
-import { contentTradeContract } from "../../blockchain/blockchian.js";
+import { contentTradeContract, wallet } from "../../blockchain/blockchian.js";
 import { isError } from "ethers";
-import {isRetryableRpcError,getErrorReason} from "../../utils/blockchain-error.js"
+import { isRetryableRpcError, getErrorReason } from "../../utils/blockchain-error.js"
 import { type TransactionInput } from "../../blockchain/type.js";
 /**
  * Content Registration Transaction 처리
@@ -65,7 +62,7 @@ export async function processContentRegistration(
     // ============================================================
     const submitted = await submitTransaction(transaction);
     if (!submitted.success) {
-      await failContentRegistrationJob(
+      await failContentRegistrationJobWithRetry(
         job,
         submitted.reason,
       );
@@ -73,12 +70,10 @@ export async function processContentRegistration(
       return;
     }
 
-
     // ============================================================
     // 5. txHash + nonce 확인
     // ============================================================
-    if (!submitted.txHash || submitted.nonce === undefined
-    ) {
+    if (!submitted.txHash || submitted.nonce === undefined) {
       return
     }
 
@@ -103,19 +98,19 @@ export async function processContentRegistration(
     );
   } catch (error) {
     console.error(
-      `[blockchain-worker] content registration processing error ` +
+      `[blockchain-worker] content registration  error ` +
       `jobId=${job.jobId}:`,
       error,
     );
 
-    throw error;
+    return;
   }
 }
 
 async function claimContentRegistrationJobWithRetry(
   jobId: string,
 ) {
-  return retryBase(
+  return withDbRetry(
     () => claimContentRegistrationJob(jobId),
     {
       operationName: `claimContentRegistrationJob:${jobId}`,
@@ -126,32 +121,22 @@ async function claimContentRegistrationJobWithRetry(
 async function claimContentRegistrationJob(
   jobId: string,
 ) {
-  return prisma.$transaction(async (tx) => {
-    const updated = await tx.contentRegistrationTransaction.updateMany({//status 조건을 위해 updateMany 사용
-      where: {
-        jobId,
-        status: "PENDING",
-      },
-      data: {
-        status: "PROCESSING",
-        processingStartedAt: new Date(),
-      },
-    });
-
-    if (updated.count === 0) {
-      return null;
-    }
-
-    const job = await tx.contentRegistrationTransaction.findUnique({
-      where: { jobId },
-    });
-
-    if (!job) {
-      throw new Error(`Content registration transaction disappeared: jobId=${jobId}`);
-    }
-
-    return job;
+  const updated = await prisma.contentRegistrationTransaction.updateManyAndReturn({
+    where: {
+      jobId,
+      status: "PENDING",
+    },
+    data: {
+      status: "PROCESSING",
+      processingStartedAt: new Date(),
+    },
   });
+
+  if (updated.length === 0) {
+    return null;
+  }
+
+  return updated[0];
 }
 
 async function simulateContentRegistrationWithRetry(
@@ -161,7 +146,7 @@ async function simulateContentRegistrationWithRetry(
     publicSignals: string;
   },
 ) {
-  return retryBase(
+  return retryWithMaxAttempts(
     () => simulateContentRegistration(job),
     {
       operationName: `simulate content registration jobId=${job.jobId}`,
@@ -176,10 +161,13 @@ export async function simulateContentRegistration(
     publicSignals: string;
   },
 ) {
+  const proof = JSON.parse(job.proof);
+  const publicSignals = JSON.parse(job.publicSignals);
+
   try {
     await simulateOnChain(
-      job.proof,
-      job.publicSignals,
+      proof,
+      publicSignals,
     );
 
     return {
@@ -215,7 +203,7 @@ async function buildContentRegistrationTransactioneWithRetry(
     proof: string;
     publicSignals: string;
   }) {
-  return retryBase(
+  return retryWithMaxAttempts(
     () => buildContentRegistrationTransaction(job),
     {
       operationName: `build content registeration jobId=${job.jobId}`,
@@ -230,6 +218,9 @@ export async function buildContentRegistrationTransaction(
     publicSignals: string;
   })
   : Promise<TransactionInput> {
+
+  const proof = JSON.parse(job.proof);
+  const publicSignals = JSON.parse(job.publicSignals);
   // 1. Nonce
   const nonce = await getPendingNonce();
 
@@ -237,8 +228,8 @@ export async function buildContentRegistrationTransaction(
   const data = contentTradeContract.interface.encodeFunctionData(
     "registerContent",
     [
-      job.proof,
-      job.publicSignals,
+      proof,
+      publicSignals,
     ],
   );
 
@@ -281,46 +272,21 @@ type SubmitTransactionResult =
 async function submitTransaction(
   transaction: TransactionInput,
 ): Promise<SubmitTransactionResult> {
-  const { signedTx, txHash } = await signTransaction(transaction);
+  try {
+    const txResponse = await wallet.sendTransaction(transaction);
 
-  while (true) {
-    try {
-      await broadcastTransaction(signedTx);
-    } catch (error) {
-      if (isRetryableRpcError(error)) {
-        await sleep(1_000);
-        continue;
-      }
+    return {
+      success: true,
+      txHash: txResponse.hash,
+      nonce: txResponse.nonce,
+    };
+  } catch (error: unknown) {
+    const reason = error instanceof Error ? error.message : String(error);
 
-      return {
-        success: false,
-        reason: getErrorReason(error),
-      };
-    }
-
-    try {
-      const tx = await getTransaction(txHash);
-
-      if (tx) {
-        return {
-          success: true,
-          txHash,
-          nonce: transaction.nonce,
-        };
-      }
-    } catch (error) {
-      if (isRetryableRpcError(error)) {
-        await sleep(1_000);
-        continue;
-      }
-
-      return {
-        success: false,
-        reason: getErrorReason(error),
-      };
-    }
-
-    await sleep(1_000);
+    return {
+      success: false,
+      reason,
+    };
   }
 }
 
@@ -333,7 +299,7 @@ async function markContentRegistrationSubmittedWithRetry({
   txHash: string;
   nonce: number;
 }) {
-  return retryBase(
+  return withDbRetry(
     () =>
       markContentRegistrationSubmitted({
         jobId,
@@ -343,6 +309,7 @@ async function markContentRegistrationSubmittedWithRetry({
     { operationName: `mark content registration SUBMITTED jobId=${jobId}` },
   );
 }
+
 
 async function markContentRegistrationSubmitted({
   jobId,
@@ -399,7 +366,7 @@ async function failContentRegistrationJobWithRetry(
   },
   reason: string,
 ) {
-  return retryBase(() => failContentRegistrationJob(job, reason), {
+  return withDbRetry(() => failContentRegistrationJob(job, reason), {
     operationName: `fail content registration jobId=${job.jobId}`,
   });
 }

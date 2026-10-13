@@ -34,5 +34,6 @@ export const env = {
   // Blockchain
   ethereumRpcUrl: requireEnv("BLOCKCHAIN_RPC_URL"),
   blockchainPrivateKey: requireEnv("PRIVATE_KEY"),
-  contentTradeContractAddress: requireEnv("CONTRACT_ADDRESS"),
+
+  contractDeploymentPath: process.env.CONTRACT_DEPLOYMENT_PATH ?? "./deployments/31337.json",
 };
