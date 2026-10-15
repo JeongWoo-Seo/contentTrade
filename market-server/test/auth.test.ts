@@ -49,7 +49,7 @@ function randomAddr(): string {
 }
 
 function signup(username = USERNAME, password = PASSWORD, overrides: Record<string, unknown> = {}) {
-  return request(app).post("/auth/signup").send({
+  return request(app).post("/api/auth/signup").send({
     username,
     password,
     addr: randomAddr(),
@@ -61,7 +61,7 @@ function signup(username = USERNAME, password = PASSWORD, overrides: Record<stri
 }
 
 function login(username = USERNAME, password = PASSWORD) {
-  return request(app).post("/auth/login").send({ username, password });
+  return request(app).post("/api/auth/login").send({ username, password });
 }
 
 // ---- lifecycle ----
@@ -138,7 +138,7 @@ describe("POST /auth/signup", () => {
     const pkOwn = "a".repeat(64);
     const pkEnc = "b".repeat(128);
     const res = await request(app)
-      .post("/auth/signup")
+      .post("/api/auth/signup")
       .send({ username: USERNAME, password: PASSWORD, addr, pkOwn, pkEnc, eoa });
     assert.equal(res.status, 201);
     assert.equal(res.body.pkOwn, pkOwn);
@@ -149,6 +149,65 @@ describe("POST /auth/signup", () => {
     assert.equal(user!.pkOwn, pkOwn);
     assert.equal(user!.pkEnc, pkEnc);
     assert.equal(user!.eoa, eoa);
+  });
+
+  it("rejects concurrent duplicate signups (unique constraint guard)", async () => {
+    const [res1, res2] = await Promise.all([
+      request(app).post("/api/auth/signup").send({
+        username: USERNAME, password: PASSWORD, addr: randomAddr(),
+        pkOwn: "a".repeat(64), pkEnc: "b".repeat(128), eoa: randomEoa(),
+      }),
+      request(app).post("/api/auth/signup").send({
+        username: USERNAME, password: PASSWORD, addr: randomAddr(),
+        pkOwn: "a".repeat(64), pkEnc: "b".repeat(128), eoa: randomEoa(),
+      }),
+    ]);
+
+    const statuses = [res1.status, res2.status].sort((a, b) => a - b);
+    assert.deepEqual(statuses, [201, 409]);
+
+    const conflict = res1.status === 409 ? res1 : res2;
+    assert.equal(conflict.body.error, "USERNAME_ALREADY_EXISTS");
+
+    const count = await prisma.user.count({ where: { username: USERNAME } });
+    assert.equal(count, 1);
+  });
+});
+
+// ============================================================
+// Username check
+// ============================================================
+
+describe("GET /api/auth/check-username", () => {
+  it("returns available=true for an unused username", async () => {
+    const res = await request(app).get("/api/auth/check-username?username=freeuser");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.available, true);
+  });
+
+  it("returns available=false for a taken username", async () => {
+    await signup();
+    const res = await request(app).get("/api/auth/check-username?username=tester");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.available, false);
+  });
+
+  it("rejects an empty username", async () => {
+    const res = await request(app).get("/api/auth/check-username?username=");
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error, "VALIDATION_ERROR");
+  });
+
+  it("rejects a too-short username", async () => {
+    const res = await request(app).get("/api/auth/check-username?username=ab");
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error, "VALIDATION_ERROR");
+  });
+
+  it("rejects an invalid-format username", async () => {
+    const res = await request(app).get("/api/auth/check-username?username=abc.def");
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error, "VALIDATION_ERROR");
   });
 });
 
@@ -205,64 +264,64 @@ describe("GET /auth/me (access token middleware)", () => {
 
   it("returns the user for a valid token", async () => {
     const loginRes = await login();
-    const res = await request(app).get("/auth/me").set("Authorization", `Bearer ${loginRes.body.accessToken}`);
+    const res = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${loginRes.body.accessToken}`);
     assert.equal(res.status, 200);
     assert.equal(res.body.username, USERNAME);
     assert.ok(res.body.eoa && res.body.eoa.startsWith("0x"));
   });
 
   it("rejects missing token", async () => {
-    const res = await request(app).get("/auth/me");
+    const res = await request(app).get("/api/auth/me");
     assert.equal(res.status, 401);
     assert.deepEqual(res.body, { error: "UNAUTHORIZED" });
   });
 
   it("rejects malformed token", async () => {
-    const res = await request(app).get("/auth/me").set("Authorization", "Bearer");
+    const res = await request(app).get("/api/auth/me").set("Authorization", "Bearer");
     assert.equal(res.status, 401);
   });
 
   it("rejects invalid token", async () => {
-    const res = await request(app).get("/auth/me").set("Authorization", "Bearer not-a-jwt");
+    const res = await request(app).get("/api/auth/me").set("Authorization", "Bearer not-a-jwt");
     assert.equal(res.status, 401);
   });
 
   it("rejects expired token", async () => {
     const expired = signCustom("access", { expiresIn: "-1s" });
-    const res = await request(app).get("/auth/me").set("Authorization", `Bearer ${expired}`);
+    const res = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${expired}`);
     assert.equal(res.status, 401);
   });
 
   it("rejects tampered (wrong signature) token", async () => {
     const loginRes = await login();
     const token = loginRes.body.accessToken.slice(0, -2) + "xx";
-    const res = await request(app).get("/auth/me").set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${token}`);
     assert.equal(res.status, 401);
   });
 
   it("rejects wrong issuer", async () => {
     const token = signCustom("access", { issuer: "wrong-issuer" });
-    const res = await request(app).get("/auth/me").set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${token}`);
     assert.equal(res.status, 401);
   });
 
   it("rejects wrong audience", async () => {
     const token = signCustom("access", { audience: "wrong-audience" });
-    const res = await request(app).get("/auth/me").set("Authorization", `Bearer ${token}`);
+    const res = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${token}`);
     assert.equal(res.status, 401);
   });
 
   it("rejects a refresh token used as an access token", async () => {
     const loginRes = await login();
     const refresh = refreshTokenFrom(loginRes)!;
-    const res = await request(app).get("/auth/me").set("Authorization", `Bearer ${refresh}`);
+    const res = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${refresh}`);
     assert.equal(res.status, 401);
   });
 
   it("returns 404 for a valid token whose user no longer exists", async () => {
     const loginRes = await login();
     await prisma.user.delete({ where: { username: USERNAME } });
-    const res = await request(app).get("/auth/me").set("Authorization", `Bearer ${loginRes.body.accessToken}`);
+    const res = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${loginRes.body.accessToken}`);
     assert.equal(res.status, 404);
     assert.deepEqual(res.body, { error: "NOT_FOUND" });
   });
@@ -281,30 +340,30 @@ describe("POST /auth/refresh", () => {
     const loginRes = await login();
     const oldRefresh = refreshTokenFrom(loginRes)!;
 
-    const res = await request(app).post("/auth/refresh").set("Cookie", `refresh_token=${oldRefresh}`);
+    const res = await request(app).post("/api/auth/refresh").set("Cookie", `refresh_token=${oldRefresh}`);
     assert.equal(res.status, 200);
     assert.ok(res.body.accessToken);
     const newRefresh = refreshTokenFrom(res);
     assert.ok(newRefresh);
     assert.notEqual(newRefresh, oldRefresh);
 
-    const reuse = await request(app).post("/auth/refresh").set("Cookie", `refresh_token=${oldRefresh}`);
+    const reuse = await request(app).post("/api/auth/refresh").set("Cookie", `refresh_token=${oldRefresh}`);
     assert.equal(reuse.status, 401);
   });
 
   it("rejects a missing refresh token", async () => {
-    const res = await request(app).post("/auth/refresh");
+    const res = await request(app).post("/api/auth/refresh");
     assert.equal(res.status, 401);
   });
 
   it("rejects an invalid refresh token", async () => {
-    const res = await request(app).post("/auth/refresh").send({ refreshToken: "not-a-jwt" });
+    const res = await request(app).post("/api/auth/refresh").send({ refreshToken: "not-a-jwt" });
     assert.equal(res.status, 401);
   });
 
   it("rejects an expired refresh token", async () => {
     const expired = signCustom("refresh", { expiresIn: "-1s" });
-    const res = await request(app).post("/auth/refresh").send({ refreshToken: expired });
+    const res = await request(app).post("/api/auth/refresh").send({ refreshToken: expired });
     assert.equal(res.status, 401);
   });
 
@@ -312,31 +371,31 @@ describe("POST /auth/refresh", () => {
     const loginRes = await login();
     const refresh = refreshTokenFrom(loginRes)!;
     const tampered = refresh.slice(0, -2) + "xx";
-    const res = await request(app).post("/auth/refresh").send({ refreshToken: tampered });
+    const res = await request(app).post("/api/auth/refresh").send({ refreshToken: tampered });
     assert.equal(res.status, 401);
   });
 
   it("rejects wrong issuer", async () => {
     const token = signCustom("refresh", { issuer: "wrong-issuer" });
-    const res = await request(app).post("/auth/refresh").send({ refreshToken: token });
+    const res = await request(app).post("/api/auth/refresh").send({ refreshToken: token });
     assert.equal(res.status, 401);
   });
 
   it("rejects wrong audience", async () => {
     const token = signCustom("refresh", { audience: "wrong-audience" });
-    const res = await request(app).post("/auth/refresh").send({ refreshToken: token });
+    const res = await request(app).post("/api/auth/refresh").send({ refreshToken: token });
     assert.equal(res.status, 401);
   });
 
   it("rejects an access token used as a refresh token", async () => {
     const loginRes = await login();
-    const res = await request(app).post("/auth/refresh").send({ refreshToken: loginRes.body.accessToken });
+    const res = await request(app).post("/api/auth/refresh").send({ refreshToken: loginRes.body.accessToken });
     assert.equal(res.status, 401);
   });
 
   it("rejects a token whose jti is not stored in the DB", async () => {
     const token = signCustom("refresh", { subject: "1" });
-    const res = await request(app).post("/auth/refresh").send({ refreshToken: token });
+    const res = await request(app).post("/api/auth/refresh").send({ refreshToken: token });
     assert.equal(res.status, 401);
   });
 
@@ -344,7 +403,7 @@ describe("POST /auth/refresh", () => {
     const loginRes = await login();
     const refresh = refreshTokenFrom(loginRes)!;
     await prisma.user.delete({ where: { username: USERNAME } });
-    const res = await request(app).post("/auth/refresh").send({ refreshToken: refresh });
+    const res = await request(app).post("/api/auth/refresh").send({ refreshToken: refresh });
     assert.equal(res.status, 401);
   });
 });
@@ -362,18 +421,18 @@ describe("refresh token rotation & reuse detection", () => {
     const loginRes = await login();
     const A = refreshTokenFrom(loginRes)!;
 
-    const r1 = await request(app).post("/auth/refresh").set("Cookie", `refresh_token=${A}`);
+    const r1 = await request(app).post("/api/auth/refresh").set("Cookie", `refresh_token=${A}`);
     assert.equal(r1.status, 200);
     const B = refreshTokenFrom(r1)!;
     assert.notEqual(B, A);
 
-    const r2 = await request(app).post("/auth/refresh").set("Cookie", `refresh_token=${B}`);
+    const r2 = await request(app).post("/api/auth/refresh").set("Cookie", `refresh_token=${B}`);
     assert.equal(r2.status, 200);
     const C = refreshTokenFrom(r2)!;
     assert.notEqual(C, B);
 
     // Replaying A now is reuse -> the whole family (A, B, C) is revoked.
-    const replayA = await request(app).post("/auth/refresh").set("Cookie", `refresh_token=${A}`);
+    const replayA = await request(app).post("/api/auth/refresh").set("Cookie", `refresh_token=${A}`);
     assert.equal(replayA.status, 401);
   });
 
@@ -382,15 +441,15 @@ describe("refresh token rotation & reuse detection", () => {
     const userId = loginRes.body.user.id;
     const A = refreshTokenFrom(loginRes)!;
 
-    const rot = await request(app).post("/auth/refresh").set("Cookie", `refresh_token=${A}`);
+    const rot = await request(app).post("/api/auth/refresh").set("Cookie", `refresh_token=${A}`);
     const B = refreshTokenFrom(rot)!;
 
     // replay A (revoked) -> reuse detection -> family revoked
-    const replay = await request(app).post("/auth/refresh").set("Cookie", `refresh_token=${A}`);
+    const replay = await request(app).post("/api/auth/refresh").set("Cookie", `refresh_token=${A}`);
     assert.equal(replay.status, 401);
 
     // B (same family) must also be revoked now
-    const useB = await request(app).post("/auth/refresh").set("Cookie", `refresh_token=${B}`);
+    const useB = await request(app).post("/api/auth/refresh").set("Cookie", `refresh_token=${B}`);
     assert.equal(useB.status, 401);
 
     // family is fully revoked in DB
@@ -404,7 +463,7 @@ describe("refresh token rotation & reuse detection", () => {
     const A = refreshTokenFrom(loginRes)!;
     const aPayload = decode(A);
 
-    const rot = await request(app).post("/auth/refresh").set("Cookie", `refresh_token=${A}`);
+    const rot = await request(app).post("/api/auth/refresh").set("Cookie", `refresh_token=${A}`);
     const B = refreshTokenFrom(rot)!;
     const bPayload = decode(B);
 
@@ -430,23 +489,23 @@ describe("POST /auth/logout", () => {
     const refresh = refreshTokenFrom(loginRes)!;
 
     const logoutRes = await request(app)
-      .post("/auth/logout")
+      .post("/api/auth/logout")
       .set("Authorization", `Bearer ${access}`)
       .set("Cookie", `refresh_token=${refresh}`);
     assert.equal(logoutRes.status, 200);
     assert.deepEqual(logoutRes.body, { message: "Logged out successfully" });
 
-    const refreshRes = await request(app).post("/auth/refresh").set("Cookie", `refresh_token=${refresh}`);
+    const refreshRes = await request(app).post("/api/auth/refresh").set("Cookie", `refresh_token=${refresh}`);
     assert.equal(refreshRes.status, 401);
   });
 
   it("rejects logout with a missing access token", async () => {
-    const res = await request(app).post("/auth/logout");
+    const res = await request(app).post("/api/auth/logout");
     assert.equal(res.status, 401);
   });
 
   it("rejects logout with an invalid access token", async () => {
-    const res = await request(app).post("/auth/logout").set("Authorization", "Bearer bad-token");
+    const res = await request(app).post("/api/auth/logout").set("Authorization", "Bearer bad-token");
     assert.equal(res.status, 401);
   });
 });

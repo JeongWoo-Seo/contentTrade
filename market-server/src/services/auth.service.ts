@@ -12,6 +12,8 @@ import { ApiError } from "../utils/errors.js";
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,100}$/;
 const MIN_PASSWORD_LENGTH = 8;
+const HEX64_RE = /^[0-9a-fA-F]{64}$/;
+const HEX128_RE = /^[0-9a-fA-F]{128}$/;
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -73,6 +75,15 @@ export const authService = {
     if (typeof eoa !== "string" || !isAddress(eoa)) {
       throw new ApiError(400, "VALIDATION_ERROR", "walletAddress must be a valid Ethereum address");
     }
+    if (typeof addr !== "string" || !HEX64_RE.test(addr)) {
+      throw new ApiError(400, "VALIDATION_ERROR", "addr must be a 64-character hex string");
+    }
+    if (typeof pkOwn !== "string" || !HEX64_RE.test(pkOwn)) {
+      throw new ApiError(400, "VALIDATION_ERROR", "pkOwn must be a 64-character hex string");
+    }
+    if (typeof pkEnc !== "string" || !HEX128_RE.test(pkEnc)) {
+      throw new ApiError(400, "VALIDATION_ERROR", "pkEnc must be a 128-character hex string");
+    }
 
     const existingUsername = await userRepository.findByUsername(username);
     if (existingUsername) {
@@ -97,17 +108,32 @@ export const authService = {
       });
       return { id: user.id, username: user.username, addr: user.addr, pkOwn: user.pkOwn, pkEnc: user.pkEnc, eoa: user.eoa };
     } catch (error) {
-      // Race condition: the DB UNIQUE constraint (P2002) is the final guard.
       if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
         let target = "";
         if ("meta" in error && typeof error.meta === "object" && error.meta !== null && "target" in error.meta) {
           const t = error.meta.target;
           target = Array.isArray(t) ? t.join(",") : String(t ?? "");
         }
-        throw new ApiError(409, target.includes("wallet_address") ? "WALLET_ALREADY_EXISTS" : "USERNAME_ALREADY_EXISTS");
+        throw new ApiError(409, target.includes("addr") ? "WALLET_ALREADY_EXISTS" : "USERNAME_ALREADY_EXISTS");
       }
       throw error;
     }
+  },
+
+  async checkUsername(username: string): Promise<{ available: boolean }> {
+    // 회원가입과 동일한 username 검증 기준.
+    if (typeof username !== "string" || !USERNAME_RE.test(username)) {
+      throw new ApiError(
+        400,
+        "VALIDATION_ERROR",
+        "username must be 3-100 characters (alphanumeric, _ or -)",
+      );
+    }
+
+    // 존재하지 않으면 사용 가능, DB 오류는 errorHandler가 500으로 처리.
+    const existing = await userRepository.findByUsername(username);
+
+    return { available: !existing };
   },
 
   async login({ username, password }: { username: string; password: string }): Promise<LoginResult> {

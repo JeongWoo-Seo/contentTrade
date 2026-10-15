@@ -14,6 +14,13 @@ export const authController = {
     res.status(201).json(user);
   }),
 
+  checkUsername: asyncHandler(async (req: Request, res: Response) => {
+    const raw = req.query.username;
+    const username = typeof raw === "string" ? raw : "";
+    const result = await authService.checkUsername(username);
+    res.json(result);
+  }),
+
   login: asyncHandler(async (req: Request, res: Response) => {
     const { username, password } = req.body ?? {};
     const result = await authService.login({ username, password });
