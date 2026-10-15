@@ -48,3 +48,43 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.auth-form .username-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.auth-form .username-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.auth-form .check-button {
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #2563eb;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #2563eb;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-form .check-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-form .check-status {
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.auth-form .check-available {
+  color: #16a34a;
+}
+
+.auth-form .check-taken {
+  color: #dc2626;
+}

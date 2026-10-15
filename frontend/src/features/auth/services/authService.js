@@ -82,6 +82,14 @@ export const authService = {
     return res;
   },
 
+  async checkUsername(username) {
+    const res = await request(
+      `/api/auth/check-username?username=${encodeURIComponent(username)}`,
+      { method: 'GET' },
+    );
+    return res;
+  },
+
   async login(payload) {
     const res = await request('/api/auth/login', { body: payload });
     if (res.accessToken) setAccessToken(res.accessToken);
