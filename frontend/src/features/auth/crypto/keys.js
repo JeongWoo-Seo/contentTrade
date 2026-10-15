@@ -30,8 +30,20 @@ export function generateSkOwn() {
   return bytesToHex(bytes); // 64-char hex, no 0x prefix
 }
 
+export function generateSkOwn() {
+  const bytes = crypto.getRandomValues(new Uint8Array(SK_OWN_BYTES));
+
+  // 32-byte random value -> BigInt -> modulo SUBGROUP_ORDER
+  const randomValue = BigInt(`0x${bytesToHex(bytes)}`);
+  const skOwn = randomValue % SUBGROUP_ORDER;
+
+  // Hex string without 0x prefix
+  return skOwn.toString(16);
+}
+
 // Derive the full key set from sk_own. Returns hex strings for storage/transport.
-export async function deriveAccount(skOwn) {
+export async function deriveAccount() {
+  const skOwn = generateSkOwn()
   const skOwnField = toField(skOwn);
 
   const pkOwn = await poseidonHash([skOwnField, DOMAIN_OWN]); // public identifier

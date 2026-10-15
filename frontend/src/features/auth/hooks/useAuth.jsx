@@ -25,8 +25,7 @@ export function AuthProvider({ children }) {
     const wallet = getTestWallet(accountIndex);
 
     // 2. generate sk_own (content encryption secret).
-    const skOwn = generateSkOwn();
-    const account = await deriveAccount(skOwn);
+    const account = await deriveAccount();
 
     // 3. derive the AES-256-GCM key (Argon2id) — reused for both secrets.
     const salt = generateSalt();
