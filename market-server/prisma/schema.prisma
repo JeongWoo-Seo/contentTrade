@@ -59,8 +59,8 @@ model User {
   // 사용자의 공개키
   pkOwn String @map("pk_own") @db.VarChar(64)
 
-  // 암호화된 공개키 (BabyJubjub point, x||y = 128 hex)
-  pkEnc String @map("pk_enc") @db.VarChar(128)
+  // 암호화된 공개키 (BabyJubjub point, x||y = 130 hex)
+  pkEnc String @map("pk_enc") @db.VarChar(130)
 
   // 사용자 주소 
   addr String @unique @db.VarChar(64)
