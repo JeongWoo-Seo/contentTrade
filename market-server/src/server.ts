@@ -2,7 +2,8 @@ import "dotenv/config";
 
 import app from "./app.js";
 import { prisma } from "./lib/prisma.js";
-import { startProducer, disconnectProducer } from "./kafka/producer.js";
+import { startProducer, disconnectProducer, ensureTopics } from "./kafka/producer.js";
+import { env } from "./config/env.js";
 import { connectProofFailedConsumer, disconnectProofFailedConsumer } from "./kafka/consumer.js";
 import { startGrpcServer } from "./grpc/grpc.server.js";
 import { OutboxWorker } from "./workers/outbox.worker.js";
@@ -17,6 +18,12 @@ async function startServer() {
 
     // kafka producer (Outbox Worker가 PROOF_REQUESTED publish)
     await startProducer();
+
+    // Kafka topic 사전 생성 (producer/consumer가 사용하기 전에 완료)
+    await ensureTopics([
+      { topic: env.kafkaProofRequestedTopic, numPartitions: env.kafkaProofRequestedPartitions },
+      { topic: env.kafkaJobFailedTopic, numPartitions: env.kafkaJobFailedPartitions },
+    ]);
 
     // kafka consumer (PROOF_FAILED 처리)
     connectProofFailedConsumer().catch((error) => {

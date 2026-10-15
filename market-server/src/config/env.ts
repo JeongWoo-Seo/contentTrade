@@ -3,10 +3,12 @@ export const env = {
 
   // Kafka
   kafkaBrokers: (process.env.KAFKA_BROKERS ?? "localhost:9092").split(","),
-  kafkaGroupId: process.env.KAFKA_GROUP_ID ?? "proof-worker-group",
+  kafkaGroupId: process.env.KAFKA_GROUP_ID ?? "market-server",
   kafkaServerIdPrefix: process.env.KAFKA_CLIENT_ID_PREFIX ?? "market-server",
-  kafkaRequestTopic: process.env.KAFKA_REQUEST_TOPIC ?? "proof_requested",
-  kafkaFailureTopic: process.env.KAFKA_FAILURE_TOPIC ?? "job_failed",
+  kafkaProofRequestedTopic: process.env.KAFKA_PROOF_REQUESTED_TOPIC ?? "proof_requested",
+  kafkaJobFailedTopic: process.env.KAFKA_JOB_FAILED_TOPIC ?? "job_failed",
+  kafkaProofRequestedPartitions: Number(process.env.KAFKA_PROOF_REQUESTED_PARTITIONS) || 1,
+  kafkaJobFailedPartitions: Number(process.env.KAFKA_JOB_FAILED_PARTITIONS) || 1,
 
   // gRPC (market-server)
   marketGrpcHost: process.env.MARKET_GRPC_HOST ?? "localhost:50051",

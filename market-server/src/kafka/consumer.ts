@@ -18,7 +18,7 @@ export async function connectProofFailedConsumer(): Promise<void> {
     await consumer.connect();
 
     await consumer.subscribe({
-        topic: env.kafkaFailureTopic,
+        topic: env.kafkaJobFailedTopic,
         fromBeginning: false,
     });
 
@@ -37,7 +37,7 @@ export async function connectProofFailedConsumer(): Promise<void> {
             } catch (error) {
                 console.error("[market-server] failed to process proof_failed", error);
 
-                // 오류 발생시 kafka message는 oommit 되지 않고 메시지를 재처리하도록 함
+                // 오류 발생시 kafka message는 commit 되지 않고 메시지를 재처리하도록 함
                 throw error;
             }
         },
