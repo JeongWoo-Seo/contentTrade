@@ -10,6 +10,7 @@ import {
 export default function AuthPage() {
   const { status, username, walletAddress } = useAuth();
   const [mode, setMode] = useState('signup');
+  const [signupMessage, setSignupMessage] = useState('');
 
   if (status === 'authenticated') {
     return (
@@ -32,13 +33,25 @@ export default function AuthPage() {
     );
   }
 
+  // 탭 전환 시 이전 성공 메시지 초기화
+  const switchTab = (next) => {
+    setMode(next);
+    setSignupMessage('');
+  };
+
+  // 회원가입 성공 → 성공 메시지 표시 + 로그인 화면으로 전환
+  const handleSignupSuccess = (signedUpUsername) => {
+    setSignupMessage(`${signedUpUsername}님, 회원가입이 완료되었습니다. 로그인해주세요.`);
+    setMode('login');
+  };
+
   return (
     <main className="auth-panel">
       <nav className="auth-tabs">
         <button
           type="button"
           className={mode === 'signup' ? 'active' : ''}
-          onClick={() => setMode('signup')}
+          onClick={() => switchTab('signup')}
         >
           회원가입
         </button>
@@ -46,13 +59,15 @@ export default function AuthPage() {
         <button
           type="button"
           className={mode === 'login' ? 'active' : ''}
-          onClick={() => setMode('login')}
+          onClick={() => switchTab('login')}
         >
           로그인
         </button>
       </nav>
 
-      {mode === 'signup' ? <SignupForm /> : <LoginForm />}
+      {signupMessage && <div className="success-banner">{signupMessage}</div>}
+
+      {mode === 'signup' ? <SignupForm onSignupSuccess={handleSignupSuccess} /> : <LoginForm />}
     </main>
   );
 }

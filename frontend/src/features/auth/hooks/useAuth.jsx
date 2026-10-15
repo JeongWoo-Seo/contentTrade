@@ -32,7 +32,7 @@ export function AuthProvider({ children }) {
     const aesKey = await deriveAesKey(password, salt);
 
     // 4. encrypt skOwn (IV A) and privateKey (IV B) with separate fresh IVs.
-    const { iv: skOwnIv, ciphertext: encryptedSkOwn } = await encryptString(skOwn, aesKey);
+    const { iv: skOwnIv, ciphertext: encryptedSkOwn } = await encryptString(account.skOwn, aesKey);
     const { iv: privateKeyIv, ciphertext: encryptedPrivateKey } = await encryptString(wallet.privateKey, aesKey);
 
     // 5. persist encrypted credentials to IndexedDB (never plaintext).

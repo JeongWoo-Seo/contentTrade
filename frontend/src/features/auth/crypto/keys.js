@@ -25,10 +25,6 @@ export function pointFromHex(hex) {
 
 // sk_own: cryptographically secure random secret (Web Crypto CSPRNG).
 // Math.random()/other PRNGs are never used for key material.
-export function generateSkOwn() {
-  const bytes = crypto.getRandomValues(new Uint8Array(SK_OWN_BYTES));
-  return bytesToHex(bytes); // 64-char hex, no 0x prefix
-}
 
 export function generateSkOwn() {
   const bytes = crypto.getRandomValues(new Uint8Array(SK_OWN_BYTES));
