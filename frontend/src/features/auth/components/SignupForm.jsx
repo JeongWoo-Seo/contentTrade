@@ -6,7 +6,7 @@ import '../styles/SignupForm.css';
 // market-server의 username 검증 기준과 동일.
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,100}$/;
 
-export function SignupForm({ onSignupSuccess }) {
+export function SignupForm() {
   const { signup } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -86,7 +86,6 @@ export function SignupForm({ onSignupSuccess }) {
     setLoading(true);
     try {
       await signup({ username: trimmedUsername, password });
-      onSignupSuccess(trimmedUsername);
     } catch (err) {
       setError(err?.message ?? '회원가입 중 오류가 발생했습니다.');
     } finally {

@@ -24,6 +24,12 @@ async function request(path, { method = 'POST', body, token } = {}) {
 
 // ---- refresh: single-flight; rotation handled by the server cookie ----
 let refreshPromise = null;
+let onRefreshFailed = null;
+
+// Refresh 실패 시(만료·무효) 호출할 콜백 등록. useAuth가 인증 상태 초기화에 사용한다.
+export function setOnRefreshFailed(callback) {
+  onRefreshFailed = callback;
+}
 
 export async function refreshAccessToken() {
   if (!refreshPromise) {
@@ -33,6 +39,12 @@ export async function refreshAccessToken() {
       .then((res) => {
         setAccessToken(res.accessToken);
         return res.accessToken;
+      })
+      .catch((err) => {
+        // 갱신 실패: 토큰 정리 + 인증 상태 초기화(로그인 화면 이동) 콜백 호출.
+        clearAccessToken();
+        if (onRefreshFailed) onRefreshFailed();
+        throw err;
       })
       .finally(() => {
         refreshPromise = null;

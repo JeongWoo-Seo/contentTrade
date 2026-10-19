@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { generateSkOwn, deriveAccount } from '../crypto/keys.js';
 import { deriveAesKey, generateSalt } from '../crypto/kdf.js';
 import { encryptString, decryptString } from '../crypto/aescipher.js';
@@ -6,7 +6,7 @@ import { saveAccount, getAccount } from '../crypto/indexeddb.js';
 import { setSecrets, clearSecrets, getSecrets } from '../crypto/session.js';
 import { setWallet, clearWallet, getWallet, getTestWallet , getNextTestAccountIndex } from '../crypto/walletStore.js';
 import { bytesToHex, hexToBytes } from '../crypto/util.js';
-import { authService } from '../services/authService.js';
+import { authService, setOnRefreshFailed } from '../services/authService.js';
 
 const AuthContext = createContext(null);
 
@@ -18,6 +18,18 @@ export function AuthProvider({ children }) {
     username: null,
     walletAddress: null,
   });
+
+  // Access Token 갱신 실패 시 인증 상태 초기화.
+  // 상태가 'anonymous'가 되면 ProtectedRoute가 로그인 화면(/)으로 리다이렉트한다.
+  useEffect(() => {
+    setOnRefreshFailed(() => {
+      clearSecrets();
+      clearWallet();
+      setState({ status: 'anonymous', username: null, walletAddress: null });
+    });
+
+    return () => setOnRefreshFailed(null);
+  }, []);
 
   const signup = useCallback(async ({ username, password }) => {
     // 1. generate an Ethereum test wallet. address -> server, privateKey -> encrypted locally.
