@@ -14,15 +14,15 @@ export function createGrpcServer() {
                 callback: any
             ) => {
                 try {
-                    const { registration_id, job_id } = call.request;
+                    const { registrationId, jobId } = call.request;
 
                     console.log(
                         `GetContentRegistration`,
-                        `registrationId=${registration_id}`,
-                        `jobId=${job_id}`
+                        `registrationId=${registrationId}`,
+                        `jobId=${jobId}`
                     );
 
-                    const registration = await novelService.getRegistrationSource(registration_id);
+                    const registration = await novelService.getRegistrationSource(registrationId);
                     if (!registration) {
                         return callback({
                             code: grpc.status.FAILED_PRECONDITION,
