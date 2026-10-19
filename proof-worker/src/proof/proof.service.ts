@@ -1,8 +1,8 @@
 import { ContentEncryptionResult } from "../crypto/encryption.js";
 import { groth16 } from "snarkjs";
 
-const CONTENT_REGISTRATION_WASM = "artifacts/regist-content/regist-content.wasm";
-const CONTENT_REGISTRATION_ZKEY = "artifacts/regist-content/regist-content_final.zkey";
+const CONTENT_REGISTRATION_WASM = "artifacts/regist_content/regist_content.wasm";
+const CONTENT_REGISTRATION_ZKEY = "artifacts/regist_content/regist_content_final.zkey";
 
 export interface ContentRegistrationProofInput {
   proofType: "CONTENT_REGISTRATION" | "TRADE_APPROVAL";

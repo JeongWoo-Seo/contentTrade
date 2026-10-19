@@ -2,7 +2,6 @@ import { ProofWorker } from "./worker.js";
 import { env } from "../config/env.js";
 import { connectProducer, disconnectProducer, ensureTopics } from "../kafka/producer.js";
 import { closeMarketClient } from "../grpc/market.client.js";
-import { prisma } from "../lib/prisma.js";
 
 export class WorkerManager {
   private workers: ProofWorker[] = [];
