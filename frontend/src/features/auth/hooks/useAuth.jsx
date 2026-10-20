@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { generateSkOwn, deriveAccount } from '../crypto/keys.js';
-import { deriveAesKey, generateSalt } from '../crypto/kdf.js';
-import { encryptString, decryptString } from '../crypto/aescipher.js';
-import { saveAccount, getAccount } from '../crypto/indexeddb.js';
-import { setSecrets, clearSecrets, getSecrets } from '../crypto/session.js';
-import { setWallet, clearWallet, getWallet, getTestWallet , getNextTestAccountIndex } from '../crypto/walletStore.js';
-import { bytesToHex, hexToBytes } from '../crypto/util.js';
+import { generateSkOwn, deriveAccount } from '../../../utils/crypto/keys.js';
+import { deriveAesKey, generateSalt } from '../../../utils/crypto/kdf.js';
+import { encryptString, decryptString } from '../../../utils/crypto/aescipher.js';
+import { saveAccount, getAccount } from '../../../utils/crypto/indexeddb.js';
+import { setSecrets, clearSecrets, getSecrets } from '../../../utils/crypto/session.js';
+import { setWallet, clearWallet, getWallet, getTestWallet , getNextTestAccountIndex } from '../../../utils/crypto/walletStore.js';
+import { bytesToHex, hexToBytes } from '../../../utils/crypto/util.js';
 import { authService, setOnRefreshFailed } from '../services/authService.js';
 
 const AuthContext = createContext(null);

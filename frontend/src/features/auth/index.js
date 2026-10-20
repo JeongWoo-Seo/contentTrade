@@ -4,4 +4,4 @@ export { LoginForm } from './components/LoginForm.jsx';
 export { LogoutButton } from './components/LogoutButton.jsx';
 export { ProtectedRoute } from './components/ProtectedRoute.jsx';
 export { authService, authFetch } from './services/authService.js';
-export { getAccessToken } from './crypto/tokenStore.js';
+export { getAccessToken } from '../../utils/crypto/tokenStore.js';

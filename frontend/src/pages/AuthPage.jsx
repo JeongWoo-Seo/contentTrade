@@ -9,7 +9,7 @@ import {
 
 export default function AuthPage() {
   const { status, username, walletAddress } = useAuth();
-  const [mode, setMode] = useState('signup');
+  const [mode, setMode] = useState('login');
   const [signupMessage, setSignupMessage] = useState('');
 
   if (status === 'authenticated') {

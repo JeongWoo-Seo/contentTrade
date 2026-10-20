@@ -114,3 +114,37 @@
   padding: 0 0.25rem;
   color: #6b7280;
 }
+
+.novel-actions {
+  margin-top: 0.5rem;
+}
+
+.purchase-button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #2563eb;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #2563eb;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.purchase-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.purchase-msg {
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 1rem;
+  border-radius: 0.5rem;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.purchase-msg.error {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}

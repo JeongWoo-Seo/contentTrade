@@ -1,5 +1,5 @@
 // Auth API client.
-import { getAccessToken, setAccessToken, clearAccessToken } from '../crypto/tokenStore.js';
+import { getAccessToken, setAccessToken, clearAccessToken } from '../../../utils/crypto/tokenStore.js';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 

@@ -198,3 +198,21 @@ export class PublicKeyEncryption {
         });
     }
 }
+
+export class SymmetricKeyEncryption {
+    /*
+    constructor(key: string) {
+        // 대칭키 초기화
+    }
+
+    Enc(plaintext: string): string {
+        // 대칭키 암호화 구현 예정
+        throw new Error("Not implemented");
+    }
+
+    Dec(ciphertext: string): string {
+        // 대칭키 복호화 구현 예정
+        throw new Error("Not implemented");
+    }
+    */
+}

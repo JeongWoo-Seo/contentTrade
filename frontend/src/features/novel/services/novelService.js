@@ -44,3 +44,18 @@ export async function getMyRegistrations({ page = 1, size = 20 } = {}) {
   }
   return res.json();
 }
+
+/**
+ * 소설 거래 정보 조회 (h_ct, ct_data, 작가 pk_own, price, 서버 pk_enc/pk_own, h_k).
+ * 거래 불가(ACTIVE 아님) 또는 미존재 시 서버가 오류를 반환한다.
+ * @param {number} id 소설(ContentList) id
+ */
+export async function getTradeInfo(id) {
+  const res = await authFetch(`/api/novels/${id}/trade`);
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || data?.error || '거래 정보를 불러오지 못했습니다.');
+  }
+  return res.json();
+}
