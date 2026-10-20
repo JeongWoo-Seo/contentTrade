@@ -32,12 +32,20 @@ export async function createContentRegistrationProof(
         reason: string;
     }
 > {
+    const encryptStart = performance.now();
+
     // 1. 콘텐츠 암호화
     const encrypted = encryptContent(input.originalText, input.authorPkOwn);
     if (!encrypted.success) {
         return encrypted;
     }
 
+    const encryptDuration = performance.now() - encryptStart;
+    console.info(
+        `[proof-worker] step=encryptContent status=${encrypted.success ? "completed" : "failed"} durationMs=${encryptDuration.toFixed(2)}`,
+    );
+
+    const proofStart = performance.now();
     // 2. ZK Proof 생성
     const proof = await generateProof({
         proofType: "CONTENT_REGISTRATION",
@@ -47,6 +55,11 @@ export async function createContentRegistrationProof(
     if (!proof.success) {
         return proof;
     }
+
+    const proofDuration = performance.now() - proofStart;
+    console.info(
+        `[proof-worker] step=generateProof status=${proof.success ? "completed" : "failed"} durationMs=${proofDuration.toFixed(2)} proofType=CONTENT_REGISTRATION`,
+    );
 
     return {
         success: true,
@@ -59,19 +72,19 @@ export async function createContentRegistrationProof(
 }
 
 export async function saveContentRegistrationTransactionWithRetry(
-  input: {
-    jobId: string;
-    registrationId: number;
-    result: ContentRegistrationProofResult;
-  },
-): Promise<void> {
-  await withDbRetry(
-    () =>
-      saveContentRegistrationTransaction(input),
-    {
-      operationName: `saveContentRegistrationTransaction:${input.jobId}`,
+    input: {
+        jobId: string;
+        registrationId: number;
+        result: ContentRegistrationProofResult;
     },
-  );
+): Promise<void> {
+    await withDbRetry(
+        () =>
+            saveContentRegistrationTransaction(input),
+        {
+            operationName: `saveContentRegistrationTransaction:${input.jobId}`,
+        },
+    );
 }
 
 export async function saveContentRegistrationTransaction(
