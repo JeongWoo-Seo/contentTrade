@@ -22,7 +22,7 @@ export async function publishNextPendingOutbox(): Promise<void> {
     await processOutbox(outbox);
 
     console.log(
-      `[blockchain-worker] ` +
+      `[outbox-worker] ` +
       `outbox processed ` +
       `id=${outbox.id} ` +
       `jobId=${outbox.jobId} ` +
@@ -34,7 +34,7 @@ export async function publishNextPendingOutbox(): Promise<void> {
     await outboxRepository.markPublishFailed(outbox.id, message);
 
     console.error(
-      `[blockchain-worker] ` +
+      `[outbox-worker] ` +
       `outbox processing failed ` +
       `id=${outbox.id} ` +
       `jobId=${outbox.jobId} ` +
@@ -101,7 +101,7 @@ async function publishFailure(
     const reason = error instanceof Error ? error.message : String(error);
 
     console.error(
-      `[blockchain-worker] ` +
+      `[outbox-worker] ` +
         `failure message publish failed ` +
         `outboxId=${outbox.id} ` +
         `jobId=${outbox.jobId} ` +
@@ -130,7 +130,7 @@ async function publishToNextWorker(
     const reason = error instanceof Error ? error.message : String(error);
 
     console.error(
-      `[blockchain-worker] ` +
+      `[outbox-worker] ` +
         `next worker message publish failed ` +
         `outboxId=${outbox.id} ` +
         `jobId=${outbox.jobId} ` +

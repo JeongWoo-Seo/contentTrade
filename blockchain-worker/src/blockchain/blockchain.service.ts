@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { provider, wallet, contentTradeContract } from "./blockchian.js";
-import { TransactionInput, SignedTransaction, Eip1559Fee, ReceiptCheckResult } from "./type.js";
+import { TransactionInput, SignedTransaction, Eip1559Fee, ReceiptCheckResult, Groth16Proof } from "./type.js";
 
 
 export async function getPendingNonce(): Promise<number> {
@@ -39,13 +39,51 @@ export async function getTransactionReceipt(
   return provider.getTransactionReceipt(txHash);
 }
 
-export async function simulateContentRegistration(
+export async function simulateOnChain(
   proof: string,
   publicSignals: string,
 ): Promise<void> {
+  const parsedProof = JSON.parse(proof) as Groth16Proof;
+
+  let parsedPublicSignals: unknown = JSON.parse(publicSignals);
+
+  // 이중 직렬화된 경우 한 번 더 파싱
+  if (typeof parsedPublicSignals === "string") {
+    parsedPublicSignals = JSON.parse(parsedPublicSignals);
+  }
+
+  if (
+    !Array.isArray(parsedPublicSignals) || parsedPublicSignals.length !== 4 ||
+     !parsedPublicSignals.every((signal) => typeof signal === "string")) {
+    throw new Error(
+      `Expected 4 public signals, got ${Array.isArray(parsedPublicSignals)
+        ? parsedPublicSignals.length
+        : typeof parsedPublicSignals
+      }`,
+    );
+  }
+
+  const a: [string, string] = [
+    parsedProof.pi_a[0],
+    parsedProof.pi_a[1],
+  ];
+
+  // snarkjs의 pi_b 좌표는 Solidity pairing 입력에 맞게 순서를 바꿉니다.
+  const b: [[string, string], [string, string]] = [
+    [parsedProof.pi_b[0][1], parsedProof.pi_b[0][0]],
+    [parsedProof.pi_b[1][1], parsedProof.pi_b[1][0]],
+  ];
+
+  const c: [string, string] = [
+    parsedProof.pi_c[0],
+    parsedProof.pi_c[1],
+  ];
+
   await contentTradeContract.registerContent.staticCall(
-    proof,
-    publicSignals,
+    a,
+    b,
+    c,
+    parsedPublicSignals,
   );
 }
 

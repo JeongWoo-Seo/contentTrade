@@ -82,7 +82,6 @@ export const outboxRepository = {
       data: rows.map((r) => ({
         jobId: r.jobId,
         jobType: r.jobType,
-        proofType: r.jobType,
         eventType: r.eventType,
         status: "PENDING" as const,
       })),

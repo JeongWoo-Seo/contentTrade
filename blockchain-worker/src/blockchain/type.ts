@@ -30,3 +30,15 @@ export interface ReceiptCheckResult {
   status?: number | null;
   transactionHash?: string;
 }
+
+export type Groth16Proof = {
+  pi_a: [string, string, string];
+  pi_b: [
+    [string, string],
+    [string, string],
+    [string, string],
+  ];
+  pi_c: [string, string, string];
+  protocol: string;
+  curve: string;
+};

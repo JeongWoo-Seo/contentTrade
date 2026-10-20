@@ -47,7 +47,7 @@ async function processContentRegistrationReceipt(
     await failContentRegistrationWithRetry(job, receipt);
 
     console.error(
-      `[blockchain-worker] content registration FAILED ` +
+      `[receipt-worker] content registration FAILED ` +
       `jobId=${job.jobId} ` +
       `txHash=${receipt.transactionHash}`,
     );
@@ -59,7 +59,7 @@ async function processContentRegistrationReceipt(
   await confirmContentRegistrationWithRetry(job);
 
   console.log(
-    `[blockchain-worker] content registration CONFIRMED ` +
+    `[receipt-worker] content registration CONFIRMED ` +
     `jobId=${job.jobId}`,
   );
 }
@@ -84,7 +84,7 @@ async function processTradeApprovalReceipt(jobId: string): Promise<void> {
     await failTradeApprovalWithRetry(job, receipt);
 
     console.error(
-      `[blockchain-worker] trade approval FAILED ` +
+      `[receipt-worker] trade approval FAILED ` +
       `jobId=${job.jobId} ` +
       `txHash=${receipt.transactionHash}`,
     );
@@ -95,7 +95,7 @@ async function processTradeApprovalReceipt(jobId: string): Promise<void> {
   await confirmTradeApprovalWithRetry(job);
 
   console.log(
-    `[blockchain-worker] trade approval CONFIRMED ` +
+    `[receipt-worker] trade approval CONFIRMED ` +
     `jobId=${job.jobId}`,
   );
 }
@@ -117,7 +117,7 @@ async function publishReceiptCheckRetry(
     });
 
     console.log(
-      `[blockchain-worker] ` +
+      `[receipt-worker] ` +
       `receipt check retry published ` +
       `jobId=${message.jobId} ` +
       `jobType=${message.jobType} ` +
@@ -127,7 +127,7 @@ async function publishReceiptCheckRetry(
     const reason = error instanceof Error ? error.message : String(error);
 
     console.error(
-      `[blockchain-worker] ` +
+      `[receipt-worker] ` +
       `receipt check retry publish failed ` +
       `jobId=${message.jobId} ` +
       `jobType=${message.jobType} ` +

@@ -3,7 +3,7 @@ import { outboxRepository } from "../../repositories/outbox.repository.js";
 import { retryWithMaxAttempts } from "../common.service.js";
 import { withDbRetry } from "../../utils/retry.js";
 import {
-  simulateContentRegistration as simulateOnChain,
+  simulateOnChain,
   getPendingNonce,
   estimateGas,
   addGasMargin,
@@ -12,7 +12,7 @@ import {
 import { contentTradeContract, wallet } from "../../blockchain/blockchian.js";
 import { isError } from "ethers";
 import { isRetryableRpcError, getErrorReason } from "../../utils/blockchain-error.js"
-import { type TransactionInput } from "../../blockchain/type.js";
+import { type TransactionInput, Groth16Proof } from "../../blockchain/type.js";
 /**
  * Content Registration Transaction 처리
  *
@@ -60,6 +60,7 @@ export async function processContentRegistration(
     // ============================================================
     // 4. TX 전송
     // ============================================================
+    console.info(`[transaction-worker] operation=submitTransaction status=started jobId=${jobId}`);
     const submitted = await submitTransaction(transaction);
     if (!submitted.success) {
       await failContentRegistrationJobWithRetry(
@@ -91,14 +92,14 @@ export async function processContentRegistration(
     }
 
     console.log(
-      `[blockchain-worker] content registration SUBMITTED ` +
+      `[transaction-worker] content registration SUBMITTED ` +
       `jobId=${job.jobId} ` +
       `txHash=${submitted.txHash} ` +
       `nonce=${submitted.nonce}`,
     );
   } catch (error) {
     console.error(
-      `[blockchain-worker] content registration  error ` +
+      `[transaction-worker] content registration  error ` +
       `jobId=${job.jobId}:`,
       error,
     );
@@ -110,6 +111,8 @@ export async function processContentRegistration(
 async function claimContentRegistrationJobWithRetry(
   jobId: string,
 ) {
+  console.info(`[transaction-worker] operation=claimContentRegistrationJob status=started jobId=${jobId}`);
+
   return withDbRetry(
     () => claimContentRegistrationJob(jobId),
     {
@@ -146,6 +149,8 @@ async function simulateContentRegistrationWithRetry(
     publicSignals: string;
   },
 ) {
+  console.info(`[transaction-worker] operation=simulateContentRegistration status=started jobId=${job.jobId}`);
+
   return retryWithMaxAttempts(
     () => simulateContentRegistration(job),
     {
@@ -161,13 +166,11 @@ export async function simulateContentRegistration(
     publicSignals: string;
   },
 ) {
-  const proof = JSON.parse(job.proof);
-  const publicSignals = JSON.parse(job.publicSignals);
 
   try {
     await simulateOnChain(
-      proof,
-      publicSignals,
+      job.proof,
+      job.publicSignals,
     );
 
     return {
@@ -182,7 +185,7 @@ export async function simulateContentRegistration(
         "Contract execution reverted";
 
       console.error(
-        `[blockchain-worker] content registration simulation reverted ` +
+        `[transaction-worker] content registration simulation reverted ` +
         `jobId=${job.jobId} reason=${reason}`,
       );
 
@@ -203,6 +206,8 @@ async function buildContentRegistrationTransactioneWithRetry(
     proof: string;
     publicSignals: string;
   }) {
+  console.info(`[transaction-worker] operation=buildContentRegistrationTransactione status=started jobId=${job.jobId}`);
+
   return retryWithMaxAttempts(
     () => buildContentRegistrationTransaction(job),
     {
@@ -216,37 +221,69 @@ export async function buildContentRegistrationTransaction(
     jobId: string;
     proof: string;
     publicSignals: string;
-  })
-  : Promise<TransactionInput> {
+  },
+): Promise<TransactionInput> {
+  const proof = JSON.parse(job.proof) as Groth16Proof;
 
-  const proof = JSON.parse(job.proof);
-  const publicSignals = JSON.parse(job.publicSignals);
+  let parsedPublicSignals: unknown = JSON.parse(job.publicSignals);
+
+  // 이중 직렬화된 경우 한 번 더 파싱
+  if (typeof parsedPublicSignals === "string") {
+    parsedPublicSignals = JSON.parse(parsedPublicSignals);
+  }
+
+  if (
+    !Array.isArray(parsedPublicSignals) ||
+    parsedPublicSignals.length !== 4 ||
+    !parsedPublicSignals.every(
+      (signal) => typeof signal === "string",
+    )
+  ) {
+    throw new Error(
+      `Invalid publicSignals for jobId=${job.jobId}`,
+    );
+  }
+
   // 1. Nonce
   const nonce = await getPendingNonce();
 
-  // 2. Calldata
+  // 2. Solidity ABI에 맞게 증명 좌표 분리
+  const a = [
+    proof.pi_a[0],
+    proof.pi_a[1],
+  ];
+
+  // Solidity pairing 입력 규약에 맞춰 좌표 순서 변경
+  const b = [
+    [proof.pi_b[0][1], proof.pi_b[0][0]],
+    [proof.pi_b[1][1], proof.pi_b[1][0]],
+  ];
+
+  const c = [
+    proof.pi_c[0],
+    proof.pi_c[1],
+  ];
+
+  // 3. Calldata
   const data = contentTradeContract.interface.encodeFunctionData(
     "registerContent",
-    [
-      proof,
-      publicSignals,
-    ],
+    [a, b, c, parsedPublicSignals],
   );
 
-  // 3. Gas 예상 가스 측정 시뮬
+  // 4. 가스 예상
   const estimatedGas = await estimateGas({
     to: contentTradeContract.target as string,
     data,
     value: 0n,
   });
 
-  // 마진 추가
   const gasLimit = addGasMargin(estimatedGas, 20);
 
-  // 4. Fee
-  const { maxFeePerGas, maxPriorityFeePerGas } = await getEip1559Fee();
+  // 5. Fee
+  const { maxFeePerGas, maxPriorityFeePerGas } =
+    await getEip1559Fee();
 
-  // 5. Transaction 조합
+  // 6. Transaction 조합
   return {
     to: contentTradeContract.target as string,
     data,
@@ -299,6 +336,7 @@ async function markContentRegistrationSubmittedWithRetry({
   txHash: string;
   nonce: number;
 }) {
+  console.info(`[transaction-worker] operation=markContentRegistrationSubmitted status=started jobId=${jobId}`);
   return withDbRetry(
     () =>
       markContentRegistrationSubmitted({
@@ -336,7 +374,7 @@ async function markContentRegistrationSubmitted({
 
     if (updated.count === 0) {
       console.warn(
-        `[blockchain-worker] failed to transition ` +
+        `[transaction-worker] failed to transition ` +
         `PROCESSING → SUBMITTED, job may already be handled ` +
         `jobId=${jobId}`,
       );
@@ -394,7 +432,7 @@ async function failContentRegistrationJob(
 
     if (updated.count === 0) {
       console.warn(
-        `[blockchain-worker] failed to transition ` +
+        `[transaction-worker] failed to transition ` +
         `PROCESSING → FAILED, job may already be handled ` +
         `jobId=${job.jobId}`,
       );
