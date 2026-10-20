@@ -18,4 +18,9 @@ export const novelController = {
     const result = await novelService.listMyRegistrations(req.userId!, req.query.page, req.query.size);
     res.json(result);
   }),
+
+  getTradeInfo: asyncHandler(async (req: Request, res: Response) => {
+    const result = await novelService.getTradeInfo(Number(req.params.id));
+    res.json(result);
+  }),
 };

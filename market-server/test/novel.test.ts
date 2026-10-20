@@ -129,24 +129,24 @@ describe("POST /api/novels", () => {
     assert.equal(res.status, 400);
   });
 
-  it("rejects content over 243 bytes", async () => {
-    const res = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "a".repeat(244) }));
+  it("rejects content over 5000 characters", async () => {
+    const res = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "a".repeat(5001) }));
     assert.equal(res.status, 400);
   });
 
-  it("accepts content at exactly 243 bytes and rejects 244", async () => {
-    const ok = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "a".repeat(243) }));
+  it("accepts content at exactly 5000 characters and rejects 5001", async () => {
+    const ok = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "a".repeat(5000) }));
     assert.equal(ok.status, 201);
 
-    const over = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "a".repeat(244) }));
+    const over = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "a".repeat(5001) }));
     assert.equal(over.status, 400);
   });
 
-  it("rejects Korean content over 243 bytes (multi-byte boundary)", async () => {
-    const ok = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "가".repeat(81) }));
+  it("counts multi-byte (Korean) content by characters, not bytes", async () => {
+    const ok = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "가".repeat(5000) }));
     assert.equal(ok.status, 201);
 
-    const over = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "가".repeat(82) }));
+    const over = await request(app).post("/api/novels").set(authHeader(user.id)).send(registerBody({ content: "가".repeat(5001) }));
     assert.equal(over.status, 400);
   });
 

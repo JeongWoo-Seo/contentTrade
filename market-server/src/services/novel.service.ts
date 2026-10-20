@@ -3,6 +3,7 @@ import { contentListRepository } from "../repositories/content-list.repository.j
 import { ApiError } from "../utils/errors.js";
 import crypto from "node:crypto";
 import { withDbRetry } from "../utils/retry.js";
+import { env } from "../config/env.js";
 
 
 const MAX_TITLE_LENGTH = 50;
@@ -186,6 +187,32 @@ export const novelService = {
       registrationId: source.registration.id,
       originalText: source.originalText,
       authorPkOwn: source.registration.author.pkOwn,
+    };
+  },
+
+  async getTradeInfo(contentId: number) {
+    if (!Number.isInteger(contentId) || contentId < 1) {
+      throw new ApiError(404, "NOT_FOUND", "존재하지 않는 소설입니다.");
+    }
+
+    const content = await contentListRepository.findByIdWithAuthor(contentId);
+    if (!content) {
+      throw new ApiError(404, "NOT_FOUND", "존재하지 않는 소설입니다.");
+    }
+
+    // 거래 상태 검증: ACTIVE(판매 중)만 거래 가능.
+    if (content.status !== "ACTIVE") {
+      throw new ApiError(409, "CONTENT_NOT_AVAILABLE", "거래할 수 없는 소설입니다.");
+    }
+
+    return {
+      hCt: content.hCt,
+      ctData: Buffer.from(content.encryptedData).toString("hex"),
+      authorPkOwn: content.author.pkOwn,
+      price: content.price.toNumber(),
+      hK: content.hK,
+      serverPkEnc: env.pkEnc,
+      serverPkOwn: env.pkOwn,
     };
   },
 };

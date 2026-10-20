@@ -23,4 +23,20 @@ export const contentListRepository = {
     ]);
     return { items, total };
   },
+
+  // 거래 정보 조회: 암호화 데이터 + 작가 pkOwn 포함 (거래 상태 검증 후 사용).
+  async findByIdWithAuthor(id: number) {
+    return prisma.contentList.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        price: true,
+        status: true,
+        hK: true,
+        hCt: true,
+        encryptedData: true,
+        author: { select: { pkOwn: true } },
+      },
+    });
+  },
 };

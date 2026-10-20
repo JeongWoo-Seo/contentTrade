@@ -10,8 +10,11 @@ export const env = {
   kafkaProofRequestedPartitions: Number(process.env.KAFKA_PROOF_REQUESTED_PARTITIONS) || 1,
   kafkaJobFailedPartitions: Number(process.env.KAFKA_JOB_FAILED_PARTITIONS) || 1,
 
-  // gRPC (market-server)
   marketGrpcHost: process.env.MARKET_GRPC_HOST ?? "localhost:50051",
+
+  // 서버 ZK 공개키 (거래 정보 응답에 포함)
+  pkOwn: process.env.PK_OWN ?? "",
+  pkEnc: process.env.PK_ENC ?? "",
 
   // Outbox Worker polling 주기 (ms)
   outboxWorkerIntervalMs: Number(process.env.OUTBOX_WORKER_INTERVAL_MS) || 1000,

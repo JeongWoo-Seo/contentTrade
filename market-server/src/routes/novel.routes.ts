@@ -7,5 +7,6 @@ const router = Router();
 router.post("/", authMiddleware, novelController.create);
 router.get("/", authMiddleware, novelController.list);
 router.get("/mine", authMiddleware, novelController.listMine);
+router.get("/:id/trade", authMiddleware, novelController.getTradeInfo);
 
 export default router;
