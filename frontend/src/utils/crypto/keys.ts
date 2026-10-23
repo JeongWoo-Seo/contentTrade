@@ -1,7 +1,7 @@
-import { poseidonHash } from './poseidon.js';
-import { scalarMulBase } from './ecc.js';
-import { FIELD_PRIME, SUBGROUP_ORDER, SK_OWN_BYTES } from './constants.js';
-import { bytesToHex, bigintToHex64, strToField } from './util.js';
+import { poseidonHash } from './poseidon';
+import { scalarMulBase } from './ecc';
+import { FIELD_PRIME, SUBGROUP_ORDER, SK_OWN_BYTES } from './constants';
+import { bytesToHex, bigintToHex64, strToField } from './util';
 
 // Domain-separation tags, derived deterministically from labels (spec section 4-6):
 //   pk_own = Poseidon(sk_own, DOMAIN_OWN)
@@ -10,23 +10,30 @@ import { bytesToHex, bigintToHex64, strToField } from './util.js';
 const DOMAIN_OWN = strToField('sk_own->pk_own');
 const DOMAIN_ENC = strToField('sk_own->sk_enc');
 
-function toField(hex) {
+function toField(hex: string): bigint {
   return BigInt('0x' + hex) % FIELD_PRIME;
 }
 
+export interface Account {
+  skOwn: string; // secret — never leaves the browser unencrypted
+  skEnc: string; // secret — derived from sk_own
+  pkOwn: string; // public
+  pkEnc: string; // public (x||y)
+  addr: string; // public commitment
+}
+
 // BabyJubjub point [x, y] -> 128-char hex (x(64) || y(64)).
-export function pointToHex([x, y]) {
+export function pointToHex([x, y]: [bigint, bigint]): string {
   return bigintToHex64(x) + bigintToHex64(y);
 }
 
-export function pointFromHex(hex) {
+export function pointFromHex(hex: string): [bigint, bigint] {
   return [BigInt('0x' + hex.slice(0, 64)), BigInt('0x' + hex.slice(64, 128))];
 }
 
 // sk_own: cryptographically secure random secret (Web Crypto CSPRNG).
 // Math.random()/other PRNGs are never used for key material.
-
-export function generateSkOwn() {
+export function generateSkOwn(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(SK_OWN_BYTES));
 
   // 32-byte random value -> BigInt -> modulo SUBGROUP_ORDER
@@ -38,8 +45,7 @@ export function generateSkOwn() {
 }
 
 // Derive the full key set from sk_own. Returns hex strings for storage/transport.
-export async function deriveAccount() {
-  const skOwn = generateSkOwn()
+export async function deriveAccount(skOwn: string): Promise<Account> {
   const skOwnField = toField(skOwn);
 
   const pkOwn = await poseidonHash([skOwnField, DOMAIN_OWN]); // public identifier
@@ -49,10 +55,10 @@ export async function deriveAccount() {
   const addr = await poseidonHash([pkOwn, pkEncPoint[0], pkEncPoint[1]]); // account commitment
 
   return {
-    skOwn, // secret — never leaves the browser unencrypted
-    skEnc: bigintToHex64(skEncField), // secret — derived from sk_own
-    pkOwn: bigintToHex64(pkOwn), // public
-    pkEnc: pointToHex(pkEncPoint), // public (x||y)
-    addr: bigintToHex64(addr), // public commitment
+    skOwn,
+    skEnc: bigintToHex64(skEncField),
+    pkOwn: bigintToHex64(pkOwn),
+    pkEnc: pointToHex(pkEncPoint),
+    addr: bigintToHex64(addr),
   };
 }

@@ -1,10 +1,10 @@
 // 페이지 번호 목록을 계산한다. 앞뒤는 생략(…) 처리.
-function getPageNumbers(page, totalPages) {
+function getPageNumbers(page: number, totalPages: number): Array<number | '...'> {
   const delta = 2;
   const left = Math.max(2, page - delta);
   const right = Math.min(totalPages - 1, page + delta);
 
-  const pages = [1];
+  const pages: Array<number | '...'> = [1];
   if (left > 2) pages.push('...');
   for (let i = left; i <= right; i++) pages.push(i);
   if (right < totalPages - 1) pages.push('...');
@@ -13,7 +13,13 @@ function getPageNumbers(page, totalPages) {
   return pages;
 }
 
-export function Pagination({ page, totalPages, onPageChange }) {
+interface PaginationProps {
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}
+
+export function Pagination({ page, totalPages, onPageChange }: PaginationProps) {
   if (totalPages <= 1) return null;
 
   const pages = getPageNumbers(page, totalPages);

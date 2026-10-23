@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getMyRegistrations } from '../services/novelService.js';
-import { Pagination } from './Pagination.jsx';
+import { getMyRegistrations } from '../services/novelService';
+import { Pagination } from './Pagination';
+import type { MyRegistrationItem, RegistrationStatus } from '../types';
 import '../styles/NovelList.css';
 import '../styles/MyRegistrations.css';
 
@@ -9,24 +10,26 @@ const PAGE_SIZE = 20;
 
 // 등록 처리 상태(ContentRegistration.status) → 사용자 친화 라벨 + 배지 클래스.
 // 판매 상태(ContentList.status)와 별개다.
-const STATUS_META = {
+const STATUS_META: Record<RegistrationStatus, { label: string; className: string }> = {
   PENDING: { label: '처리 대기', className: 'pending' },
   PROCESSING: { label: '처리 중', className: 'processing' },
   APPROVED: { label: '승인', className: 'approved' },
   REJECTED: { label: '반려', className: 'rejected' },
 };
 
-function formatDate(iso) {
+type LoadStatus = 'loading' | 'loaded' | 'error';
+
+function formatDate(iso: string): string {
   return iso ? iso.slice(0, 10) : '';
 }
 
 export function MyRegistrations() {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState<MyRegistrationItem[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [status, setStatus] = useState('loading'); // loading | loaded | error
+  const [status, setStatus] = useState<LoadStatus>('loading');
 
-  const load = useCallback(async (p) => {
+  const load = useCallback(async (p: number) => {
     setStatus('loading');
     try {
       const data = await getMyRegistrations({ page: p, size: PAGE_SIZE });

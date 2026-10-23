@@ -34,13 +34,13 @@ export default function AuthPage() {
   }
 
   // 탭 전환 시 이전 성공 메시지 초기화
-  const switchTab = (next) => {
+  const switchTab = (next: 'signup' | 'login') => {
     setMode(next);
     setSignupMessage('');
   };
 
   // 회원가입 성공 → 성공 메시지 표시 + 로그인 화면으로 전환
-  const handleSignupSuccess = (signedUpUsername) => {
+  const handleSignupSuccess = (signedUpUsername: string) => {
     setSignupMessage(`${signedUpUsername}님, 회원가입이 완료되었습니다. 로그인해주세요.`);
     setMode('login');
   };

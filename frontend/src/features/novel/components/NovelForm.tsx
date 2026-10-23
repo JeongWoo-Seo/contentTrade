@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createNovel } from '../services/novelService.js';
+import { createNovel } from '../services/novelService';
 import '../styles/NovelForm.css';
 
 const MAX_TITLE = 50;
@@ -17,7 +17,7 @@ export function NovelForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const onSubmit = async (e) => {
+  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
 
@@ -72,7 +72,7 @@ export function NovelForm() {
       });
       navigate('/novels', { state: { registered: true } });
     } catch (err) {
-      setError(err?.message ?? '소설 등록에 실패했습니다.');
+      setError(err instanceof Error ? err.message : '소설 등록에 실패했습니다.');
       setLoading(false);
     }
   };

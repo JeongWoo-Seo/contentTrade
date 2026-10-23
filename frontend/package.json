@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -19,10 +20,12 @@
     "snarkjs": "^0.7.6"
   },
   "devDependencies": {
+    "@types/node": "^26.6.5",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
     "oxlint": "^1.79.0",
+    "typescript": "^7.0.2",
     "vite": "^8.2.2",
     "vite-plugin-node-polyfills": "^0.28.0"
   }

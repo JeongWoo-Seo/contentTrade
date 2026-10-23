@@ -5,15 +5,15 @@ import {
   ARGON2_PARALLELISM,
   AES_KEY_BYTES,
   SALT_BYTES,
-} from './constants.js';
+} from './constants';
 
-export function generateSalt() {
+export function generateSalt(): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(SALT_BYTES));
 }
 
 // Derive an AES-256-GCM key from the password via Argon2id (memory-hard KDF).
 // The raw password is never used as a key directly (spec section 9).
-export async function deriveAesKey(password, salt) {
+export async function deriveAesKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
   const rawKey = await argon2id({
     password,
     salt,
@@ -24,5 +24,11 @@ export async function deriveAesKey(password, salt) {
     outputType: 'binary', // raw bytes -> import as AES-GCM key
   });
 
-  return crypto.subtle.importKey('raw', rawKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  return crypto.subtle.importKey(
+    'raw',
+    rawKey as Uint8Array<ArrayBuffer>,
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt', 'decrypt'],
+  );
 }

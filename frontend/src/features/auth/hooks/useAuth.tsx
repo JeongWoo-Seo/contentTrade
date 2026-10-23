@@ -1,19 +1,38 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { generateSkOwn, deriveAccount } from '../../../utils/crypto/keys.js';
-import { deriveAesKey, generateSalt } from '../../../utils/crypto/kdf.js';
-import { encryptString, decryptString } from '../../../utils/crypto/aescipher.js';
-import { saveAccount, getAccount } from '../../../utils/crypto/indexeddb.js';
-import { setSecrets, clearSecrets, getSecrets } from '../../../utils/crypto/session.js';
-import { setWallet, clearWallet, getWallet, getTestWallet , getNextTestAccountIndex } from '../../../utils/crypto/walletStore.js';
-import { bytesToHex, hexToBytes } from '../../../utils/crypto/util.js';
-import { authService, setOnRefreshFailed } from '../services/authService.js';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { generateSkOwn, deriveAccount } from '../../../utils/crypto/keys';
+import { deriveAesKey, generateSalt } from '../../../utils/crypto/kdf';
+import { encryptString, decryptString } from '../../../utils/crypto/aescipher';
+import { saveAccount, getAccount } from '../../../utils/crypto/indexeddb';
+import { setSecrets, clearSecrets, getSecrets, type Session } from '../../../utils/crypto/session';
+import { setWallet, clearWallet, getWallet, getTestWallet, getNextTestAccountIndex, type Wallet } from '../../../utils/crypto/walletStore';
+import { bytesToHex, hexToBytes } from '../../../utils/crypto/util';
+import { authService, setOnRefreshFailed, type AuthFetchOptions } from '../services/authService';
+import { getContractAddress, registerAccount } from '../services/contractService';
 
-const AuthContext = createContext(null);
+type AuthStatus = 'anonymous' | 'unauthenticated' | 'authenticated';
+
+interface AuthState {
+  status: AuthStatus;
+  username: string | null;
+  walletAddress: string | null;
+}
+
+interface AuthContextValue extends AuthState {
+  signup: (input: { username: string; password: string }) => Promise<void>;
+  login: (input: { username: string; password: string }) => Promise<void>;
+  logout: () => Promise<void>;
+  refresh: typeof authService.refresh;
+  authFetch: (path: string, options?: AuthFetchOptions) => Promise<Response>;
+  getSecrets: () => Session;
+  getWallet: () => Wallet | null;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
 
 // Public (non-secret) auth state lives in React state; secrets (sk_own, sk_enc,
 // Ethereum private key) live in module-level memory stores, never in React state.
-export function AuthProvider({ children }) {
-  const [state, setState] = useState({
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AuthState>({
     status: 'anonymous',
     username: null,
     walletAddress: null,
@@ -31,23 +50,34 @@ export function AuthProvider({ children }) {
     return () => setOnRefreshFailed(null);
   }, []);
 
-  const signup = useCallback(async ({ username, password }) => {
+  const signup = useCallback(async ({ username, password }: { username: string; password: string }) => {
     // 1. generate an Ethereum test wallet. address -> server, privateKey -> encrypted locally.
     const accountIndex = getNextTestAccountIndex();
     const wallet = getTestWallet(accountIndex);
 
     // 2. generate sk_own (content encryption secret).
-    const account = await deriveAccount();
+    const skOwn = generateSkOwn()
+    const account = await deriveAccount(skOwn);
 
-    // 3. derive the AES-256-GCM key (Argon2id) — reused for both secrets.
+    // 3. 컨트랙트 주소 조회 + 계좌 등록 트랜잭션 (블록체인)
+    //    (4단계 서버 addr 중복 확인·가입 승인은 이후 단계에서 구현)
+    const deployment = await getContractAddress();
+    const txHash = await registerAccount({
+      wallet,
+      account,
+      contractAddress: deployment.contentTrade,
+    });
+    console.log(`[signup] registUser tx: ${txHash}`);
+
+    // 4. derive the AES-256-GCM key (Argon2id) — reused for both secrets.
     const salt = generateSalt();
     const aesKey = await deriveAesKey(password, salt);
 
-    // 4. encrypt skOwn (IV A) and privateKey (IV B) with separate fresh IVs.
+    // 5. encrypt skOwn (IV A) and privateKey (IV B) with separate fresh IVs.
     const { iv: skOwnIv, ciphertext: encryptedSkOwn } = await encryptString(account.skOwn, aesKey);
     const { iv: privateKeyIv, ciphertext: encryptedPrivateKey } = await encryptString(wallet.privateKey, aesKey);
 
-    // 5. persist encrypted credentials to IndexedDB (never plaintext).
+    // 6. persist encrypted credentials to IndexedDB (never plaintext).
     await saveAccount({
       id: username,
       walletAddress: wallet.address,
@@ -58,7 +88,7 @@ export function AuthProvider({ children }) {
       salt: bytesToHex(salt),
     });
 
-    // 6. register on the server
+    // 7. register on the server
     await authService.signup({
       username,
       password,
@@ -68,10 +98,10 @@ export function AuthProvider({ children }) {
       addr: account.addr,
     });
 
-    setState({ status: 'unauthenticated' });
+    setState({ status: 'unauthenticated', username: null, walletAddress: null });
   }, []);
 
-  const login = useCallback(async ({ username, password }) => {
+  const login = useCallback(async ({ username, password }: { username: string; password: string }) => {
     // 1. server auth — response includes user.walletAddress.
     const res = await authService.login({ username, password });
     const serverWalletAddress = res?.user?.eoa ?? null;
@@ -126,7 +156,7 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const value = {
+  const value: AuthContextValue = {
     ...state,
     signup,
     login,
@@ -140,7 +170,7 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
+export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
   return ctx;

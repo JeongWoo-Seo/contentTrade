@@ -1,23 +1,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listNovels, getTradeInfo } from '../services/novelService.js';
-import { Pagination } from './Pagination.jsx';
+import { listNovels, getTradeInfo } from '../services/novelService';
+import { Pagination } from './Pagination';
+import type { NovelListItem } from '../types';
 import '../styles/NovelList.css';
 
 const PAGE_SIZE = 20;
 
+type LoadStatus = 'loading' | 'loaded' | 'error';
+
 export function NovelList() {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState<NovelListItem[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [status, setStatus] = useState('loading'); // loading | loaded | error
+  const [status, setStatus] = useState<LoadStatus>('loading');
 
   // 구매 진행 상태
-  const [purchasingId, setPurchasingId] = useState(null); // 구매 중인 소설 id
+  const [purchasingId, setPurchasingId] = useState<number | null>(null); // 구매 중인 소설 id
   const [purchaseMessage, setPurchaseMessage] = useState('');
   const [purchaseError, setPurchaseError] = useState(false);
 
-  const load = useCallback(async (p) => {
+  const load = useCallback(async (p: number) => {
     setStatus('loading');
     try {
       const data = await listNovels({ page: p, size: PAGE_SIZE });
@@ -33,7 +36,7 @@ export function NovelList() {
     load(page);
   }, [page, load]);
 
-  const handlePurchase = async (item) => {
+  const handlePurchase = async (item: NovelListItem) => {
     // 중복 클릭 방지: 이미 구매 절차가 진행 중이면 무시.
     if (purchasingId !== null) return;
 
@@ -74,7 +77,7 @@ export function NovelList() {
     } catch (err) {
       // 거래 불가 / 존재하지 않음 / 네트워크·API 오류 → 절차 중단 + 안내.
       setPurchaseError(true);
-      setPurchaseMessage(err?.message ?? '구매 중 오류가 발생했습니다.');
+      setPurchaseMessage(err instanceof Error ? err.message : '구매 중 오류가 발생했습니다.');
     } finally {
       setPurchasingId(null);
     }

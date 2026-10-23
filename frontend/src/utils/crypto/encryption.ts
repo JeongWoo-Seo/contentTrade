@@ -5,6 +5,39 @@ import { buildBabyjub, buildPoseidon } from "circomlibjs";
 type BabyJub = Awaited<ReturnType<typeof buildBabyjub>>;
 type Poseidon = Awaited<ReturnType<typeof buildPoseidon>>;
 
+// ========================================
+// circomlibjs 초기화 결과 캐싱
+// ========================================
+
+let babyjubPromise: ReturnType<typeof buildBabyjub> | undefined;
+let poseidonPromise: ReturnType<typeof buildPoseidon> | undefined;
+
+function getBabyjub(): ReturnType<typeof buildBabyjub> {
+    if (!babyjubPromise) {
+        babyjubPromise = buildBabyjub().catch((error: unknown) => {
+            babyjubPromise = undefined;
+            throw error;
+        });
+    }
+
+    return babyjubPromise;
+}
+
+function getPoseidon(): ReturnType<typeof buildPoseidon> {
+    if (!poseidonPromise) {
+        poseidonPromise = buildPoseidon().catch((error: unknown) => {
+            poseidonPromise = undefined;
+            throw error;
+        });
+    }
+
+    return poseidonPromise;
+}
+
+// ========================================
+// Public Key Encryption
+// ========================================
+
 export interface KeyPair {
     privKey: string;
     pubKey: string;
@@ -19,11 +52,13 @@ export class PublicKeyEncryption {
     private constructor(
         private readonly babyjub: BabyJub,
         private readonly poseidon: Poseidon,
-    ) { }
+    ) {}
 
     static async create(): Promise<PublicKeyEncryption> {
-        const babyjub = await buildBabyjub();
-        const poseidon = await buildPoseidon();
+        const [babyjub, poseidon] = await Promise.all([
+            getBabyjub(),
+            getPoseidon(),
+        ]);
 
         return new PublicKeyEncryption(babyjub, poseidon);
     }
@@ -45,58 +80,49 @@ export class PublicKeyEncryption {
     }
 
     private fromHex(value: string): bigint {
-        if (!/^[0-9a-fA-F]+$/.test(value)) {
+        if (!/^(?:0x)?[0-9a-fA-F]+$/.test(value)) {
             throw new Error("Invalid hexadecimal value");
         }
 
-        return BigInt(`0x${value}`);
+        return BigInt(value.startsWith("0x") ? value : `0x${value}`);
     }
 
     private randomScalar(): bigint {
-        // 데모용: 아래 설명의 운영용 난수 주의사항 참고
+        // 기존 방식 유지: 아래 운영용 난수 주의사항 참고
         const random = BigInt(`0x${randomBytes(32).toString("hex")}`);
-
         return random % this.subOrder;
     }
 
     private hash(inputs: bigint[]): bigint {
         return this.poseidon.F.toObject(
             this.poseidon(inputs),
-        );
+        ) as bigint;
     }
 
     private encodePoint(point: bigint[]): string {
-        const x = this.babyjub.F.toObject(point[0]);
-        const y = this.babyjub.F.toObject(point[1]);
+        const x = this.babyjub.F.toObject(point[0]) as bigint;
+        const y = this.babyjub.F.toObject(point[1]) as bigint;
 
-        const xHex = x.toString(16).padStart(64, '0');
-        const yHex = y.toString(16).padStart(64, '0');
+        const xHex = x.toString(16).padStart(64, "0");
+        const yHex = y.toString(16).padStart(64, "0");
 
-        // 고정 64자(x) + 고정 64자(y) = 구분자 없는 128자 Hex
         return xHex + yHex;
     }
 
     private decodePoint(encoded: string): bigint[] {
-    if (encoded.length !== 128) {
-        throw new Error("Invalid point hex length (must be 128 hex characters)");
+        if (!/^[0-9a-fA-F]{128}$/.test(encoded)) {
+            throw new Error("Invalid point encoding (expected 128 hex characters)");
+        }
+
+        const x = BigInt(`0x${encoded.slice(0, 64)}`);
+        const y = BigInt(`0x${encoded.slice(64, 128)}`);
+
+        return [this.babyjub.F.e(x),this.babyjub.F.e(y)];
     }
 
-    const xHex = encoded.slice(0, 64);
-    const yHex = encoded.slice(64, 128);
-
-    const x = BigInt(`0x${xHex}`);
-    const y = BigInt(`0x${yHex}`);
-
-    // BigInt 값을 BabyJubjub Field Element 형태로 변환하여 반환
-    return [
-        this.babyjub.F.e(x),
-        this.babyjub.F.e(y)
-    ];
-}
-
     private deriveSharedKey(sharedPoint: bigint[]): bigint {
-        const x = this.babyjub.F.toObject(sharedPoint[0]);
-        const y = this.babyjub.F.toObject(sharedPoint[1]);
+        const x = this.babyjub.F.toObject(sharedPoint[0]) as bigint;
+        const y = this.babyjub.F.toObject(sharedPoint[1]) as bigint;
 
         return this.hash([x, y, 1n]);
     }
@@ -125,7 +151,6 @@ export class PublicKeyEncryption {
 
     Enc(pubKey: string, ...messages: string[]): PublicCiphertext {
         const publicPoint = this.decodePoint(pubKey);
-
         const r = this.randomScalar();
 
         if (r === 0n) {
@@ -190,6 +215,13 @@ export class PublicKeyEncryption {
 
         return ciphertext.c1.map((value, index) => {
             const encrypted = this.fromHex(value);
+
+            if (encrypted >= this.prime) {
+                throw new RangeError(
+                    `Ciphertext at index ${index} exceeds the field range`,
+                );
+            }
+
             const mask = this.encryptMask(key, index);
 
             return this.toHex(
@@ -199,20 +231,173 @@ export class PublicKeyEncryption {
     }
 }
 
+// ========================================
+// Symmetric Key Encryption
+// ========================================
+
+export interface Ciphertext {
+    r: string;
+    ct: string;
+}
+
+export interface CiphertextData {
+    r: string;
+    ct: string[];
+}
+
 export class SymmetricKeyEncryption {
-    /*
-    constructor(key: string) {
-        // 대칭키 초기화
+    private constructor(
+        private readonly sk: bigint,
+        private readonly p: bigint,
+        private readonly poseidon: Poseidon,
+        private readonly dataMaxBlockNum: number,
+    ) {}
+
+    static async create(
+        privateKey: string,
+        dataMaxBlockNum: number,
+    ): Promise<SymmetricKeyEncryption> {
+        const poseidon = await getPoseidon();
+
+        const p = poseidon.F.p as bigint;
+        const normalizedKey = privateKey.startsWith("0x")
+            ? privateKey
+            : `0x${privateKey}`;
+
+        const sk = BigInt(normalizedKey);
+
+        if (sk < 0n || sk >= p) {
+            throw new RangeError(
+                "Private key must be in the field range",
+            );
+        }
+
+        if (
+            !Number.isInteger(dataMaxBlockNum) ||
+            dataMaxBlockNum <= 0
+        ) {
+            throw new RangeError(
+                "dataMaxBlockNum must be a positive integer",
+            );
+        }
+
+        return new SymmetricKeyEncryption(
+            sk,
+            p,
+            poseidon,
+            dataMaxBlockNum,
+        );
     }
 
-    Enc(plaintext: string): string {
-        // 대칭키 암호화 구현 예정
-        throw new Error("Not implemented");
+    private randomFieldElement(): bigint {
+        const byteLength = Math.ceil(this.p.toString(2).length / 8);
+        const range = 1n << BigInt(byteLength * 8);
+        const limit = range - (range % this.p);
+
+        while (true) {
+            const candidate = BigInt(
+                `0x${randomBytes(byteLength).toString("hex")}`,
+            );
+
+            if (candidate < limit) {
+                return candidate % this.p;
+            }
+        }
     }
 
-    Dec(ciphertext: string): string {
-        // 대칭키 복호화 구현 예정
-        throw new Error("Not implemented");
+    private hash(sk: bigint, r: bigint): bigint {
+        return this.poseidon.F.toObject(
+            this.poseidon([sk, r]),
+        ) as bigint;
     }
-    */
+
+    private parseField(value: string | bigint): bigint {
+        const n = typeof value === "bigint"
+            ? value
+            : BigInt(value);
+
+        if (n < 0n || n >= this.p) {
+            throw new RangeError(
+                "Data must be in the field range",
+            );
+        }
+
+        return n;
+    }
+
+    private toHex(value: bigint): string {
+        return value.toString(16);
+    }
+
+    // ct = (data + Poseidon(sk, r)) mod p
+    Enc(data: string | bigint): Ciphertext {
+        const r = this.randomFieldElement();
+        const plaintext = this.parseField(data);
+        const mask = this.hash(this.sk, r);
+        const ct = (plaintext + mask) % this.p;
+
+        return {
+            r: this.toHex(r),
+            ct: this.toHex(ct),
+        };
+    }
+
+    // ct[i] = (data[i] + Poseidon(sk + i, r)) mod p
+    EncData(
+        data: Array<string | bigint>,
+    ): CiphertextData {
+        if (data.length !== this.dataMaxBlockNum) {
+            throw new RangeError(
+                `Expected ${this.dataMaxBlockNum} blocks, got ${data.length}`,
+            );
+        }
+
+        const r = this.randomFieldElement();
+
+        const ct = data.map((value, i) => {
+            const plaintext = this.parseField(value);
+            const indexedKey = (this.sk + BigInt(i)) % this.p;
+            const mask = this.hash(indexedKey, r);
+
+            return this.toHex(
+                (plaintext + mask) % this.p,
+            );
+        });
+
+        return {
+            r: this.toHex(r),
+            ct,
+        };
+    }
+
+    // data = (ct - Poseidon(sk, r) + p) mod p
+    Dec(ciphertext: Ciphertext): string {
+        const r = this.parseField(`0x${ciphertext.r}`);
+        const ct = this.parseField(`0x${ciphertext.ct}`);
+        const mask = this.hash(this.sk, r);
+
+        return this.toHex(
+            (ct - mask + this.p) % this.p,
+        );
+    }
+
+    DecData(ciphertext: CiphertextData): string[] {
+        if (ciphertext.ct.length !== this.dataMaxBlockNum) {
+            throw new RangeError(
+                `Expected ${this.dataMaxBlockNum} blocks, got ${ciphertext.ct.length}`,
+            );
+        }
+
+        const r = this.parseField(`0x${ciphertext.r}`);
+
+        return ciphertext.ct.map((value, i) => {
+            const ct = this.parseField(`0x${value}`);
+            const indexedKey = (this.sk + BigInt(i)) % this.p;
+            const mask = this.hash(indexedKey, r);
+
+            return this.toHex(
+                (ct - mask + this.p) % this.p,
+            );
+        });
+    }
 }

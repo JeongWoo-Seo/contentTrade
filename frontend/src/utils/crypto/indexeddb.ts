@@ -1,6 +1,16 @@
-import { IDB_NAME, IDB_STORE } from './constants.js';
+import { IDB_NAME, IDB_STORE } from './constants';
 
-function openDb() {
+export interface AccountRecord {
+  id: string;
+  walletAddress: string;
+  encryptedPrivateKey: string;
+  privateKeyIv: string;
+  encryptedSkOwn: string;
+  skOwnIv: string;
+  salt: string;
+}
+
+function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(IDB_NAME, 1);
     req.onupgradeneeded = () => {
@@ -15,8 +25,7 @@ function openDb() {
 }
 
 // Persist encrypted credentials (plus IV/salt), keyed by account id.
-// Record shape: { id, walletAddress, encryptedPrivateKey, privateKeyIv, encryptedSkOwn, skOwnIv, salt }
-export function saveAccount(record) {
+export function saveAccount(record: AccountRecord): Promise<void> {
   return new Promise((resolve, reject) => {
     openDb()
       .then((db) => {
@@ -35,7 +44,7 @@ export function saveAccount(record) {
   });
 }
 
-export function getAccount(id) {
+export function getAccount(id: string): Promise<AccountRecord | null> {
   return new Promise((resolve, reject) => {
     openDb()
       .then((db) => {
@@ -43,7 +52,7 @@ export function getAccount(id) {
         const req = tx.objectStore(IDB_STORE).get(id);
         req.onsuccess = () => {
           db.close();
-          resolve(req.result || null);
+          resolve((req.result as AccountRecord | undefined) ?? null);
         };
         req.onerror = () => {
           db.close();
@@ -54,7 +63,7 @@ export function getAccount(id) {
   });
 }
 
-export function deleteAccount(id) {
+export function deleteAccount(id: string): Promise<void> {
   return new Promise((resolve, reject) => {
     openDb()
       .then((db) => {

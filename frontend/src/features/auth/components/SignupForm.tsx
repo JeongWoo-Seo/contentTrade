@@ -1,12 +1,16 @@
-import { useState } from 'react';
-import { useAuth } from '../hooks/useAuth.jsx';
-import { authService } from '../services/authService.js';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { authService } from '../services/authService';
 import '../styles/SignupForm.css';
 
 // market-server의 username 검증 기준과 동일.
 const USERNAME_RE = /^[a-zA-Z0-9_-]{3,100}$/;
 
-export function SignupForm() {
+interface SignupFormProps {
+  onSignupSuccess: (username: string) => void;
+}
+
+export function SignupForm({ onSignupSuccess }: SignupFormProps) {
   const { signup } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -16,14 +20,14 @@ export function SignupForm() {
 
   // 아이디 중복 검사 상태
   const [checking, setChecking] = useState(false);
-  const [checkedUsername, setCheckedUsername] = useState(null); // 검사 완료된 아이디
-  const [available, setAvailable] = useState(null); // null=미검사, true=사용가능, false=중복
+  const [checkedUsername, setCheckedUsername] = useState<string | null>(null); // 검사 완료된 아이디
+  const [available, setAvailable] = useState<boolean | null>(null); // null=미검사, true=사용가능, false=중복
 
   const trimmedUsername = username.trim();
   // 현재 입력값과 검사 완료된 아이디가 일치하고, 사용 가능한 경우에만 통과.
   const checkValid = available === true && checkedUsername === trimmedUsername;
 
-  const handleUsernameChange = (e) => {
+  const handleUsernameChange = (e: ChangeEvent<HTMLInputElement>) => {
     setUsername(e.target.value);
     // 아이디를 수정하면 이전 검사 결과를 무효화한다.
     setCheckedUsername(null);
@@ -52,13 +56,13 @@ export function SignupForm() {
       // API/네트워크 오류는 중복 검사 성공으로 처리하지 않는다.
       setCheckedUsername(null);
       setAvailable(null);
-      setError(err?.message ?? '중복 검사 중 오류가 발생했습니다.');
+      setError(err instanceof Error ? err.message : '중복 검사 중 오류가 발생했습니다.');
     } finally {
       setChecking(false);
     }
   };
 
-  const onSubmit = async (e) => {
+  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     if (!trimmedUsername) {
@@ -86,8 +90,9 @@ export function SignupForm() {
     setLoading(true);
     try {
       await signup({ username: trimmedUsername, password });
+      onSignupSuccess(trimmedUsername);
     } catch (err) {
-      setError(err?.message ?? '회원가입 중 오류가 발생했습니다.');
+      setError(err instanceof Error ? err.message : '회원가입 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }

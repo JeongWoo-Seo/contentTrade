@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useAuth } from '../hooks/useAuth.jsx';
+import { useState, type FormEvent } from 'react';
+import { useAuth } from '../hooks/useAuth';
 import '../styles/LoginForm.css';
 
 export function LoginForm() {
@@ -9,7 +9,7 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const onSubmit = async (e) => {
+  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     if (!username.trim() || !password) {
@@ -21,7 +21,7 @@ export function LoginForm() {
     try {
       await login({ username: username.trim(), password });
     } catch (err) {
-      setError(err?.message ?? '로그인 중 오류가 발생했습니다.');
+      setError(err instanceof Error ? err.message : '로그인 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
