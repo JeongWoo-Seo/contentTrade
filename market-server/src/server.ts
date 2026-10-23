@@ -7,14 +7,17 @@ import { env } from "./config/env.js";
 import { connectProofFailedConsumer, disconnectProofFailedConsumer } from "./kafka/consumer.js";
 import { startGrpcServer } from "./grpc/grpc.server.js";
 import { OutboxWorker } from "./workers/outbox.worker.js";
+import { contractService } from "./services/contract.service.js";
 
 const PORT = Number(process.env.PORT) || 8080;
 
 async function startServer() {
   try {
-    // db
     await prisma.$connect();
     console.log("PostgreSQL connected");
+
+    // 컨트랙트 배포 주소 1회 로드 (이후 API 요청에서 캐시된 값 사용)
+    await contractService.load();
 
     // kafka producer (Outbox Worker가 PROOF_REQUESTED publish)
     await startProducer();

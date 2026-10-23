@@ -16,6 +16,10 @@ export const env = {
   pkOwn: process.env.PK_OWN ?? "",
   pkEnc: process.env.PK_ENC ?? "",
 
+  // 컨트랙트 배포 정보 (contract/deployments)
+  contractDeploymentDir: process.env.CONTRACT_DEPLOYMENT_DIR ?? "../contract/deployments",
+  chainId: Number(process.env.CHAIN_ID) || 31337,
+
   // Outbox Worker polling 주기 (ms)
   outboxWorkerIntervalMs: Number(process.env.OUTBOX_WORKER_INTERVAL_MS) || 1000,
 };
