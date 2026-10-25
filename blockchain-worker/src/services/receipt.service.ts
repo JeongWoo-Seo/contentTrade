@@ -2,8 +2,7 @@ import { checkContentRegistrationReceipt, checkTradeApprovalReceipt } from "../b
 import { contentRegistrationTransactionRepository } from "../repositories/content-registration.repository.js";
 import { tradeApprovalTransactionRepository } from "../repositories/trade-approval.repository.js";
 import { transactionRepository } from "../repositories/transation.repository.js";
-import { sendMessage } from "../kafka/producer.js";
-import { TOPICS } from "../kafka/topics.js";
+import { outboxRepository } from "../repositories/outbox.repository.js";
 import { withDbRetry } from "../utils/retry.js";
 import type {
   ContentRegistrationTransaction,
@@ -33,12 +32,14 @@ async function processContentRegistrationReceipt(
 
   const receipt = await checkContentRegistrationReceipt(job.txHash!);
 
-  // 아직 블록에 포함되지 않음 → Receipt Kafka 재발행
+  // 아직 블록에 포함되지 않음 → Outbox를 PENDING으로 되돌려 재발행
   if (!receipt.confirmed && !receipt.failed) {
-    await publishReceiptCheckRetry({
-      jobId: job.jobId,
-      jobType: "CONTENT_REGISTRATION",
-    });
+    await markReceiptCheckPendingWithRetry(job.jobId);
+    console.error(
+      `[receipt-worker] content registration not yet ` +
+      `jobId=${job.jobId} ` +
+      `txHash=${receipt.transactionHash}`,
+    );
     return;
   }
 
@@ -73,10 +74,7 @@ async function processTradeApprovalReceipt(jobId: string): Promise<void> {
   const receipt = await checkTradeApprovalReceipt(job.txHash!);
 
   if (!receipt.confirmed && !receipt.failed) {
-    await publishReceiptCheckRetry({
-      jobId: job.jobId,
-      jobType: "TRADE_APPROVAL",
-    });
+    await markReceiptCheckPendingWithRetry(job.jobId);
     return;
   }
 
@@ -101,43 +99,15 @@ async function processTradeApprovalReceipt(jobId: string): Promise<void> {
 }
 
 /**
- * pending receipt를 Receipt Kafka topic에 재발행한다.
- * publish 실패 시 반드시 throw하여 Kafka consumer가 offset을 commit하지 않도록 한다.
+ * Receipt 미확정 시 해당 job의 RECEIPT_CHECK_REQUESTED Outbox를 PENDING으로 되돌린다.
+ * Outbox worker가 확인 메시지를 재발행한다. DB 반영 실패 시 throw하여
+ * Kafka consumer가 offset을 commit하지 않도록 한다.
  */
-async function publishReceiptCheckRetry(
-  message: {
-    jobId: string;
-    jobType: OutboxJobType;
-  },
-): Promise<void> {
-  try {
-    await sendMessage(TOPICS.receipt, message.jobId, {
-      jobId: message.jobId,
-      jobType: message.jobType,
-    });
-
-    console.log(
-      `[receipt-worker] ` +
-      `receipt check retry published ` +
-      `jobId=${message.jobId} ` +
-      `jobType=${message.jobType} ` +
-      `topic=${TOPICS.receipt}`,
-    );
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-
-    console.error(
-      `[receipt-worker] ` +
-      `receipt check retry publish failed ` +
-      `jobId=${message.jobId} ` +
-      `jobType=${message.jobType} ` +
-      `topic=${TOPICS.receipt} ` +
-      `reason=${reason}`,
-    );
-
-    // 반드시 throw → Kafka consumer가 현재 offset을 commit하지 않음
-    throw error;
-  }
+async function markReceiptCheckPendingWithRetry(jobId: string): Promise<void> {
+  await withDbRetry(
+    () => outboxRepository.markPendingForReceiptRetry(jobId),
+    { operationName: `markReceiptCheckPending:${jobId}` },
+  );
 }
 
 async function failContentRegistrationWithRetry(

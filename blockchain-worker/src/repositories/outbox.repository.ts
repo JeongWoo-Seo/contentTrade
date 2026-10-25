@@ -70,6 +70,17 @@ export const outboxRepository = {
       },
     });
   },
+  /**
+   * Receipt 재확인을 위해 해당 job의 RECEIPT_CHECK_REQUESTED Outbox를 PENDING으로 되돌린다.
+   * Outbox worker가 다음 poll에서 확인 메시지를 재발행한다.
+   * 이미 PENDING이어도 안전(no-op)하며 publishedAt을 초기화한다.
+   */
+  async markPendingForReceiptRetry(jobId: string) {
+    return prisma.transactionOutbox.updateMany({
+      where: { jobId, eventType: "RECEIPT_CHECK_REQUESTED" },
+      data: { status: "PENDING", publishedAt: null },
+    });
+  },
 
   /**
    * Recovery용: 중복 허용(이미 존재하면 skip)으로 Outbox를 생성한다.
