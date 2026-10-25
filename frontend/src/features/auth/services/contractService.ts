@@ -71,10 +71,13 @@ export async function registerAccount({
   const pkOwn = BigInt(`0x${account.pkOwn}`);
   const pkEnc = pointFromHex(account.pkEnc);
 
+  // 암호화할 초기 잔고 (10진수)
+  const balance = 50000000000n;
+
   // SymmetricKeyEncryption 초기화
   // dataMaxBlockNum은 이 예제의 단일 값 암호화에서는 사용하지 않음
   const encryption = await SymmetricKeyEncryption.create(account.skEnc, 1);
-  const encrypted = encryption.Enc(account.skEnc);
+  const encrypted = encryption.Enc(balance.toString(16));
 
   const r = BigInt(`0x${encrypted.r}`);
   const ct = BigInt(`0x${encrypted.ct}`);

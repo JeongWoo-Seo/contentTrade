@@ -77,7 +77,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { iv: skOwnIv, ciphertext: encryptedSkOwn } = await encryptString(account.skOwn, aesKey);
     const { iv: privateKeyIv, ciphertext: encryptedPrivateKey } = await encryptString(wallet.privateKey, aesKey);
 
-    // 6. persist encrypted credentials to IndexedDB (never plaintext).
+    // 6. register on the server
+    await authService.signup({
+      username,
+      password,
+      eoa: wallet.address,
+      pkOwn: account.pkOwn,
+      pkEnc: account.pkEnc,
+      addr: account.addr,
+      txHash,
+    });
+
+    // 7. persist encrypted credentials to IndexedDB (never plaintext).
     await saveAccount({
       id: username,
       walletAddress: wallet.address,
@@ -86,16 +97,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       encryptedSkOwn,
       skOwnIv,
       salt: bytesToHex(salt),
-    });
-
-    // 7. register on the server
-    await authService.signup({
-      username,
-      password,
-      eoa: wallet.address,
-      pkOwn: account.pkOwn,
-      pkEnc: account.pkEnc,
-      addr: account.addr,
     });
 
     setState({ status: 'unauthenticated', username: null, walletAddress: null });
