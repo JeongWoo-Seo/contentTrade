@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "OutboxJobType" ADD VALUE 'ACCOUNT_REGISTRATION';

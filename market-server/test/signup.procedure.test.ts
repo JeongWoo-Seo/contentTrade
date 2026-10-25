@@ -17,6 +17,10 @@ function randomAddr(): string {
   return randomBytes(32).toString("hex");
 }
 
+function randomTxHash(): string {
+  return `0x${randomBytes(32).toString("hex")}`;
+}
+
 function validBody(overrides: Record<string, unknown> = {}) {
   return {
     username: "newuser",
@@ -25,12 +29,13 @@ function validBody(overrides: Record<string, unknown> = {}) {
     pkOwn: "a".repeat(64),
     pkEnc: "b".repeat(128),
     eoa: randomEoa(),
+    txHash: randomTxHash(),
     ...overrides,
   };
 }
 
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe('TRUNCATE "refresh_tokens", "user" RESTART IDENTITY CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE "outbox", "refresh_tokens", "user" RESTART IDENTITY CASCADE');
 });
 
 after(async () => {
@@ -57,6 +62,18 @@ describe("POST /api/auth/signup — missing required fields", () => {
 
   it("rejects missing pkEnc", async () => {
     const res = await request(app).post("/api/auth/signup").send(validBody({ pkEnc: undefined }));
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error, "VALIDATION_ERROR");
+  });
+
+  it("rejects missing txHash", async () => {
+    const res = await request(app).post("/api/auth/signup").send(validBody({ txHash: undefined }));
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error, "VALIDATION_ERROR");
+  });
+
+  it("rejects invalid txHash", async () => {
+    const res = await request(app).post("/api/auth/signup").send(validBody({ txHash: "not-a-txhash" }));
     assert.equal(res.status, 400);
     assert.equal(res.body.error, "VALIDATION_ERROR");
   });

@@ -1,5 +1,5 @@
 import { kafka } from "./kafka.js";
-import { MarketKafkaMessage } from "./types.js"
+import type { ProofRequestedMessage, AccountRegistrationMessage } from "./types.js";
 import { env } from "../config/env.js";
 
 const producer = kafka.producer({
@@ -21,10 +21,24 @@ export async function disconnectProducer(): Promise<void> {
 }
 
 export async function sendProofRequested(
-  message: MarketKafkaMessage
+  message: ProofRequestedMessage
 ): Promise<void> {
   await producer.send({
     topic: env.kafkaProofRequestedTopic,
+    messages: [
+      {
+        key: message.jobId,
+        value: JSON.stringify(message),
+      },
+    ],
+  });
+}
+
+export async function sendAccountRegistration(
+  message: AccountRegistrationMessage
+): Promise<void> {
+  await producer.send({
+    topic: env.kafkaReceiptTopic,
     messages: [
       {
         key: message.jobId,

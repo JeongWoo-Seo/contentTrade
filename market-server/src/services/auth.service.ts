@@ -14,6 +14,7 @@ const USERNAME_RE = /^[a-zA-Z0-9_-]{3,100}$/;
 const MIN_PASSWORD_LENGTH = 8;
 const HEX64_RE = /^[0-9a-fA-F]{64}$/;
 const HEX128_RE = /^[0-9a-fA-F]{128}$/;
+const TXHASH_RE = /^0x[0-9a-fA-F]{64}$/;
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -32,6 +33,7 @@ interface SignupInput {
   pkOwn: string ;
   pkEnc: string;
   eoa: string;
+  txHash: string;
 }
 
 interface UserInfo {
@@ -61,7 +63,7 @@ interface RefreshResult {
 }
 
 export const authService = {
-  async signup({ username, password, addr, pkOwn, pkEnc, eoa }: SignupInput): Promise<UserInfo> {
+  async signup({ username, password, addr, pkOwn, pkEnc, eoa, txHash }: SignupInput): Promise<UserInfo> {
     if (typeof username !== "string" || !USERNAME_RE.test(username)) {
       throw new ApiError(
         400,
@@ -84,7 +86,9 @@ export const authService = {
     if (typeof pkEnc !== "string" || !HEX128_RE.test(pkEnc)) {
       throw new ApiError(400, "VALIDATION_ERROR", "pkEnc must be a 128-character hex string");
     }
-
+    if (typeof txHash !== "string" || !TXHASH_RE.test(txHash)) {
+      throw new ApiError(400, "VALIDATION_ERROR", "txHash must be a valid Ethereum transaction hash");
+    }
     const existingUsername = await userRepository.findByUsername(username);
     if (existingUsername) {
       throw new ApiError(409, "USERNAME_ALREADY_EXISTS");
@@ -97,14 +101,20 @@ export const authService = {
 
     const passwordHash = await hashPassword(password);
 
+    // jobId 생성 (Outbox / Kafka / Receipt worker에서 공유)
+    const jobId = randomUUID();
+
     try {
-      const user = await userRepository.create({
+      // 회원 정보 + 계좌 확인용 Outbox 이벤트를 하나의 transaction으로 저장
+      const user = await userRepository.createWithOutbox({
+        jobId,
         username,
         passwordHash,
         addr,
         pkOwn: pkOwn,
         pkEnc: pkEnc,
         eoa: eoa,
+        txHash: txHash,
       });
       return { id: user.id, username: user.username, addr: user.addr, pkOwn: user.pkOwn, pkEnc: user.pkEnc, eoa: user.eoa };
     } catch (error) {
@@ -148,6 +158,13 @@ export const authService = {
       throw new ApiError(401, "UNAUTHORIZED");
     }
 
+    // 가입 승인이 완료되지 않은 계정은 로그인을 허용하지 않는다.
+    if (user.status === "PENDING") {
+      throw new ApiError(403, "ACCOUNT_PENDING", "signup approval is not complete yet");
+    }
+    if (user.status === "REJECTED") {
+      throw new ApiError(403, "ACCOUNT_REJECTED", "signup was rejected");
+    }
     const access = signAccessToken(user.id);
     const refresh = signRefreshToken(user.id);
 

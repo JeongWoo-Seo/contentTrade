@@ -51,4 +51,13 @@ export const outboxRepository = {
       },
     });
   },
+  /**
+   * jobId로 Outbox 레코드를 조회한다. 가입 확인 결과 처리 시
+   * jobId → referenceId(user.id) 매핑에 사용한다.
+   */
+  async findByJobId(jobId: string) {
+    return prisma.outbox.findFirst({
+      where: { jobId },
+    });
+  },
 };

@@ -4,7 +4,7 @@ import app from "./app.js";
 import { prisma } from "./lib/prisma.js";
 import { startProducer, disconnectProducer, ensureTopics } from "./kafka/producer.js";
 import { env } from "./config/env.js";
-import { connectProofFailedConsumer, disconnectProofFailedConsumer } from "./kafka/consumer.js";
+import { connectProofFailedConsumer, disconnectProofFailedConsumer, connectAccountResultConsumer, disconnectAccountResultConsumer } from "./kafka/consumer.js";
 import { startGrpcServer } from "./grpc/grpc.server.js";
 import { OutboxWorker } from "./workers/outbox.worker.js";
 import { contractService } from "./services/contract.service.js";
@@ -26,11 +26,18 @@ async function startServer() {
     await ensureTopics([
       { topic: env.kafkaProofRequestedTopic, numPartitions: env.kafkaProofRequestedPartitions },
       { topic: env.kafkaJobFailedTopic, numPartitions: env.kafkaJobFailedPartitions },
+      { topic: env.kafkaAccountRegistrationResultTopic, numPartitions: env.kafkaAccountRegistrationResultPartitions },
     ]);
 
     // kafka consumer (PROOF_FAILED 처리)
     connectProofFailedConsumer().catch((error) => {
       console.error("Kafka consumer failed:", error);
+      process.exit(1);
+    });
+
+    // kafka consumer (가입 확인 결과 처리)
+    connectAccountResultConsumer().catch((error) => {
+      console.error("Kafka account result consumer failed:", error);
       process.exit(1);
     });
 
@@ -60,6 +67,7 @@ async function startServer() {
         outboxWorker.stop();
         await disconnectProducer();
         await disconnectProofFailedConsumer();
+        await disconnectAccountResultConsumer();
         await prisma.$disconnect();
 
         server.close(() => process.exit(0));

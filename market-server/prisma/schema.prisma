@@ -35,12 +35,19 @@ enum BuyStatus {
 enum OutboxJobType {
   CONTENT_REGISTRATION
   TRADE_APPROVAL
+  ACCOUNT_REGISTRATION
 }
 
 enum OutboxStatus {
   PENDING
   PUBLISHED
   FAILED
+}
+
+enum AccountStatus {
+  PENDING // 가입 확인 대기
+  ACTIVE // 가입 승인
+  REJECTED // 가입 거절
 }
 
 // ============================================================
@@ -67,6 +74,12 @@ model User {
 
   // Ethereum EOA 
   eoa String @db.VarChar(42)
+
+  // 가입 상태 (PENDING → receipt 확인 → ACTIVE/REJECTED)
+  status AccountStatus @default(PENDING)
+
+  // 계좌 등록(registUser) 트랜잭션 해시 (가입 확인용)
+  txHash String? @map("tx_hash") @db.VarChar(66)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

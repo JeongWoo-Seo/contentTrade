@@ -9,8 +9,8 @@ function readRefreshToken(req: Request): string | undefined {
 
 export const authController = {
   signup: asyncHandler(async (req: Request, res: Response) => {
-    const { username, password, addr, pkOwn, pkEnc, eoa } = req.body ?? {};
-    const user = await authService.signup({ username, password, addr, pkOwn, pkEnc, eoa });
+    const { username, password, addr, pkOwn, pkEnc, eoa, txHash } = req.body ?? {};
+    const user = await authService.signup({ username, password, addr, pkOwn, pkEnc, eoa, txHash });
     res.status(201).json(user);
   }),
 

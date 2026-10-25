@@ -48,6 +48,10 @@ function randomAddr(): string {
   return randomBytes(32).toString("hex");
 }
 
+function randomTxHash(): string {
+  return `0x${randomBytes(32).toString("hex")}`;
+}
+
 function signup(username = USERNAME, password = PASSWORD, overrides: Record<string, unknown> = {}) {
   return request(app).post("/api/auth/signup").send({
     username,
@@ -56,8 +60,14 @@ function signup(username = USERNAME, password = PASSWORD, overrides: Record<stri
     pkOwn: "a".repeat(64),
     pkEnc: "b".repeat(128),
     eoa: randomEoa(),
+    txHash: randomTxHash(),
     ...overrides,
   });
+}
+
+// 가입 확인(receipt) 완료를 흉내내기 위해 회원을 ACTIVE로 전이한다.
+async function approveUser(username = USERNAME): Promise<void> {
+  await prisma.user.update({ where: { username }, data: { status: "ACTIVE" } });
 }
 
 function login(username = USERNAME, password = PASSWORD) {
@@ -67,7 +77,7 @@ function login(username = USERNAME, password = PASSWORD) {
 // ---- lifecycle ----
 
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe('TRUNCATE "refresh_tokens", "user" RESTART IDENTITY CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE "outbox", "refresh_tokens", "user" RESTART IDENTITY CASCADE');
 });
 
 after(async () => {
@@ -139,7 +149,7 @@ describe("POST /auth/signup", () => {
     const pkEnc = "b".repeat(128);
     const res = await request(app)
       .post("/api/auth/signup")
-      .send({ username: USERNAME, password: PASSWORD, addr, pkOwn, pkEnc, eoa });
+      .send({ username: USERNAME, password: PASSWORD, addr, pkOwn, pkEnc, eoa, txHash: randomTxHash() });
     assert.equal(res.status, 201);
     assert.equal(res.body.pkOwn, pkOwn);
     assert.equal(res.body.pkEnc, pkEnc);
@@ -155,11 +165,11 @@ describe("POST /auth/signup", () => {
     const [res1, res2] = await Promise.all([
       request(app).post("/api/auth/signup").send({
         username: USERNAME, password: PASSWORD, addr: randomAddr(),
-        pkOwn: "a".repeat(64), pkEnc: "b".repeat(128), eoa: randomEoa(),
+        pkOwn: "a".repeat(64), pkEnc: "b".repeat(128), eoa: randomEoa(), txHash: randomTxHash(),
       }),
       request(app).post("/api/auth/signup").send({
         username: USERNAME, password: PASSWORD, addr: randomAddr(),
-        pkOwn: "a".repeat(64), pkEnc: "b".repeat(128), eoa: randomEoa(),
+        pkOwn: "a".repeat(64), pkEnc: "b".repeat(128), eoa: randomEoa(), txHash: randomTxHash(),
       }),
     ]);
 
@@ -218,6 +228,7 @@ describe("GET /api/auth/check-username", () => {
 describe("POST /auth/login", () => {
   beforeEach(async () => {
     await signup();
+    await approveUser();
   });
 
   it("issues access token + refresh cookie", async () => {
@@ -253,6 +264,30 @@ describe("POST /auth/login", () => {
   });
 });
 
+describe("POST /auth/login — 가입 승인 대기/거절 계정", () => {
+  it("rejects a PENDING account (403 ACCOUNT_PENDING)", async () => {
+    await signup();
+    const res = await login();
+    assert.equal(res.status, 403);
+    assert.equal(res.body.error, "ACCOUNT_PENDING");
+  });
+
+  it("rejects a REJECTED account (403 ACCOUNT_REJECTED)", async () => {
+    await signup();
+    await prisma.user.update({ where: { username: USERNAME }, data: { status: "REJECTED" } });
+    const res = await login();
+    assert.equal(res.status, 403);
+    assert.equal(res.body.error, "ACCOUNT_REJECTED");
+  });
+
+  it("allows login after the account is approved (ACTIVE)", async () => {
+    await signup();
+    await approveUser();
+    const res = await login();
+    assert.equal(res.status, 200);
+    assert.ok(res.body.accessToken);
+  });
+});
 // ============================================================
 // Access token middleware (via /auth/me)
 // ============================================================
@@ -260,6 +295,7 @@ describe("POST /auth/login", () => {
 describe("GET /auth/me (access token middleware)", () => {
   beforeEach(async () => {
     await signup();
+    await approveUser();
   });
 
   it("returns the user for a valid token", async () => {
@@ -334,6 +370,7 @@ describe("GET /auth/me (access token middleware)", () => {
 describe("POST /auth/refresh", () => {
   beforeEach(async () => {
     await signup();
+    await approveUser();
   });
 
   it("rotates: returns new tokens and revokes the old one", async () => {
@@ -415,6 +452,7 @@ describe("POST /auth/refresh", () => {
 describe("refresh token rotation & reuse detection", () => {
   beforeEach(async () => {
     await signup();
+    await approveUser();
   });
 
   it("rotates A -> B -> C (each refresh issues a fresh token)", async () => {
@@ -481,6 +519,7 @@ describe("refresh token rotation & reuse detection", () => {
 describe("POST /auth/logout", () => {
   beforeEach(async () => {
     await signup();
+    await approveUser();
   });
 
   it("logs out and revokes the refresh token", async () => {
