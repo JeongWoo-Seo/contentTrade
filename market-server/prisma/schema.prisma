@@ -79,7 +79,7 @@ model User {
   status AccountStatus @default(PENDING)
 
   // 계좌 등록(registUser) 트랜잭션 해시 (가입 확인용)
-  txHash String? @map("tx_hash") @db.VarChar(66)
+  txHash String @map("tx_hash") @db.VarChar(66)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

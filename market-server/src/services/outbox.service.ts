@@ -19,10 +19,14 @@ export async function publishNextPendingOutbox(): Promise<boolean> {
   }
 
   try {
-    if (outbox.jobType === "ACCOUNT_REGISTRATION") {
-      await sendAccountRegistration(await buildAccountRegistrationMessage(outbox));
-    } else {
-      await sendProofRequested(buildProofRequestedMessage(outbox));
+    switch (outbox.jobType) {
+      case "ACCOUNT_REGISTRATION":
+        await sendAccountRegistration(await buildAccountRegistrationMessage(outbox));
+        break;
+
+      default:
+        await sendProofRequested(buildProofRequestedMessage(outbox));
+        break;
     }
 
     await withDbRetry(
@@ -49,16 +53,16 @@ function buildProofRequestedMessage(outbox: Outbox): ProofRequestedMessage {
   if (outbox.jobType === "CONTENT_REGISTRATION") {
     return {
       jobId: outbox.jobId,
-      proofType: "CONTENT_REGISTRATION",
-      registrationId: outbox.referenceId,
+      jobType: "CONTENT_REGISTRATION",
+      referenceId: outbox.referenceId,
       requestedAt: outbox.createdAt.toISOString(),
     };
   }
 
   return {
     jobId: outbox.jobId,
-    proofType: "TRADE_APPROVAL",
-    purchaseId: outbox.referenceId,
+    jobType: "TRADE_APPROVAL",
+    referenceId: outbox.referenceId,
     requestedAt: outbox.createdAt.toISOString(),
   };
 }
@@ -78,9 +82,10 @@ export async function buildAccountRegistrationMessage(
 
   return {
     jobId: outbox.jobId,
-    proofType: "ACCOUNT_REGISTRATION",
+    jobType: "ACCOUNT_REGISTRATION",
     addr: user.addr,
-    txHash: user.txHash ?? "",
+    txHash: user.txHash,
+    referenceId: user.id,
     requestedAt: outbox.createdAt.toISOString(),
   };
 }

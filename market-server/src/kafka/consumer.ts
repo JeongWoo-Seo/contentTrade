@@ -55,15 +55,15 @@ async function handleProofFailed(
     message: JobFailedMessage
 ): Promise<void> {
 
-    if (message.proofType === "CONTENT_REGISTRATION") {
+    if (message.jobType === "CONTENT_REGISTRATION") {
         console.log(
             `[market-server] proof failed ` +
-            `registrationId=${message.registrationId}` +
+            `registrationId=${message.referenceId}` +
             `jobId=${message.jobId}, ` +
             `failedStage=${message.failedStage}, ` +
             `reason=${message.reason}`
         );
-        await novelService.failedRegistration({ registrationId: message.registrationId, reason: message.reason })
+        await novelService.failedRegistration({ registrationId: message.referenceId, reason: message.reason })
     }
     //
     // if (message.proofType === "TRADE_APPROVAL") {

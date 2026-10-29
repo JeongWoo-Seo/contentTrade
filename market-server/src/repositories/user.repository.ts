@@ -21,6 +21,7 @@ export const userRepository = {
     pkOwn: string;
     pkEnc: string;
     eoa: string;
+    txHash: string;
   }) {
     return prisma.user.create({ data });
   },
