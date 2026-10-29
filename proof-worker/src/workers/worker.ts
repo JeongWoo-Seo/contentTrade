@@ -14,7 +14,7 @@ import {
   createContentRegistrationProof,
   saveContentRegistrationTransactionWithRetry,
   findContentRegistrationByJobIdWithRetry,
-  failJubOutboxWithRetry,
+  failJobOutboxWithRetry,
 } from "../service/transaction.service.js"
 import { getContentRegistrationSourceWithRetry } from "../service/transaction.service.js";
 
@@ -70,18 +70,17 @@ export class ProofWorker {
   private async handle(
     message: ProofRequestedMessage,
   ): Promise<void> {
-    console.log(`[${this.workerId}] received jobId=${message.jobId}, proofType=${message.proofType}`);
+    console.log(`[${this.workerId}] received jobId=${message.jobId}, proofType=${message.jobType}`);
 
     try {
-      if (message.proofType === "CONTENT_REGISTRATION") {
+      if (message.jobType === "CONTENT_REGISTRATION") {
         await this.handleContentRegistration(message);
       }
-      else if (message.proofType === "TRADE_APPROVAL") {
+      else if (message.jobType === "TRADE_APPROVAL") {
         await this.handleTradeApproval(message);
       } else {
         const error = new Error(`Unsupported proofType`);
-        const reason = error instanceof Error ? error.message : String(error);
-        await failJubOutboxWithRetry(message, reason);
+        console.error(`[${this.workerId}] proof failed:`, error);
       }
     } catch (error) {
       console.error(`[${this.workerId}] proof failed jobId=${message.jobId}:`, error);
@@ -91,10 +90,10 @@ export class ProofWorker {
   }
 
   private async handleContentRegistration(message: RegistrationProofRequestedMessage): Promise<void> {
-    if (message.registrationId == null) {
+    if (message.referenceId == null) {
       const error = new Error(`registrationId is null`);
       const reason = error instanceof Error ? error.message : String(error);
-      await failJubOutboxWithRetry(message, reason);
+      await failJobOutboxWithRetry(message, reason);
       return;
     }
 
@@ -107,13 +106,13 @@ export class ProofWorker {
 
     //grpc get job data
     console.log(`[${this.workerId}] fetching data via gRPC, jobId=${message.jobId}`);
-    const source = await getContentRegistrationSourceWithRetry(message.registrationId, message.jobId);
+    const source = await getContentRegistrationSourceWithRetry(message.referenceId, message.jobId);
 
     // generate proof
     console.log(`[${this.workerId}] proof generation started`);
     const proof = await createContentRegistrationProof({
       jobId: message.jobId,
-      registrationId: message.registrationId,
+      registrationId: message.referenceId,
       originalText: source.originalText,
       authorPkOwn: source.authorPkOwn
     });
@@ -121,7 +120,7 @@ export class ProofWorker {
     if (!proof.success) {
       const error = new Error(proof.reason);
       const reason = error instanceof Error ? error.message : String(error);
-      await failJubOutboxWithRetry(message, reason);
+      await failJobOutboxWithRetry(message, reason);
       console.log(`[${this.workerId}] proof generation failed, jobId=${message.jobId}`);
       return;
     }
@@ -131,7 +130,7 @@ export class ProofWorker {
     try {
       await saveContentRegistrationTransactionWithRetry({
         jobId: message.jobId,
-        registrationId: message.registrationId,
+        registrationId: message.referenceId,
         result: proof.result,
       });
 
@@ -146,7 +145,7 @@ export class ProofWorker {
   }
 
   private async handleTradeApproval(message: TradeProofRequestedMessage): Promise<void> {
-    if (message.purchaseId == null) {
+    if (message.referenceId == null) {
       throw new Error(`purchaseId is required: jobId=${message.jobId}`);
     }
 
@@ -159,21 +158,21 @@ export class ProofWorker {
     console.log(`[${this.workerId}] proof generation started`);
     const proof = await generateProof({
       proofType: "TRADE_APPROVAL",
-      purchaseId: message.purchaseId,
+      purchaseId: message.referenceId,
     });
     if (!proof.success) {
       const error = new Error(proof.reason);
       const reason = error instanceof Error ? error.message : String(error);
-      await failJubOutboxWithRetry(message, reason);
+      await failJobOutboxWithRetry(message, reason);
       console.log(`[${this.workerId}] proof generation failed`);
       return;
     }
     console.log(`[${this.workerId}] proof generation completed`);
 
     try {
-      await transactionRepository.createTradeApproval({
+      await transactionRepository.createTradeApprovalWithOutbox({
         jobId: message.jobId,
-        purchaseId: message.purchaseId,
+        purchaseId: message.referenceId,
         proof: proof.result.proof,
         publicSignals: proof.result.publicSignals,
       });

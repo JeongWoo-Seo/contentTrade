@@ -29,7 +29,6 @@ model ContentRegistrationTransaction {
 
   // 작업 ID
   jobId String @unique @map("job_id") @db.VarChar(100)
-
   // 소설 등록 ID
   registrationId Int @map("registration_id")
 
@@ -38,7 +37,6 @@ model ContentRegistrationTransaction {
   // ----------------------------------------------------------
 
   proof String @db.Text
-
   // ZK circuit public inputs
   publicSignals String @map("public_signals") @db.Text
 
@@ -81,23 +79,14 @@ model ContentRegistrationTransaction {
 
   status TransactionJobStatus @default(PENDING)
 
-  failureReason String? @map("failure_reason") @db.Text
-
-  retryCount Int @default(0) @map("retry_count")
-
   submittedAt DateTime? @map("submitted_at")
-
   confirmedAt DateTime? @map("confirmed_at")
-
   processingStartedAt DateTime? @map("processing_started_at")
-
   createdAt DateTime @default(now()) @map("created_at")
-
   updatedAt DateTime @updatedAt @map("updated_at")
 
-
+  @@index([jobId])
   @@index([status])
-  @@index([registrationId])
   @@index([createdAt])
   @@index([status, createdAt])
 
@@ -115,45 +104,84 @@ model TradeApprovalTransaction {
 
   // 작업 ID
   jobId String @unique @map("job_id") @db.VarChar(100)
-
   // 구매 ID
   purchaseId Int @map("purchase_id")
-
   // ZK Proof
   proof String @db.Text
-
   // ZK circuit public inputs
   publicSignals String @map("public_signals") @db.Text
+  txHash String? @unique @map("tx_hash") @db.VarChar(255)
+  nonce Int?
 
   status TransactionJobStatus @default(PENDING)
 
-  txHash String? @unique @map("tx_hash") @db.VarChar(255)
-
-  nonce Int?
-
   processingStartedAt DateTime? @map("processing_started_at")
-
   submittedAt DateTime? @map("submitted_at")
-
   confirmedAt DateTime? @map("confirmed_at")
-
-  failureReason String? @map("failure_reason") @db.Text
-
-  retryCount Int @default(0) @map("retry_count")
-
   createdAt DateTime @default(now()) @map("created_at")
-
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@index([jobId])
   @@index([status])
-
-  @@index([purchaseId])
-
   @@index([createdAt])
-
   @@index([status, createdAt])
 
   @@map("trade_approval_transactions")
+}
+
+// ==========================================================
+// 회원가입 블록체인 등록 확인
+// ==========================================================
+
+enum AccountRegistrationStatus {
+  PENDING
+  CHECKING
+  CONFIRMED
+  FAILED
+}
+
+model AccountRegistration {
+  id Int @id @default(autoincrement())
+
+  // 회원가입 확인 작업 ID
+  jobId String @unique @map("job_id") @db.VarChar(100)
+  // 사용자의 블록체인 주소
+  addr String @db.VarChar(255)
+  // 회원가입 트랜잭션 해시
+  txHash String @unique @map("tx_hash") @db.VarChar(255)
+  // Receipt 확인 상태
+  status AccountRegistrationStatus @default(PENDING)
+
+  confirmedAt DateTime? @map("confirmed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([jobId])
+  @@map("account_registration")
+}
+
+// ==========================================================
+// Outbox
+// ==========================================================
+
+model jobFailure {
+  id Int @id @default(autoincrement())
+
+  // 공통 작업 식별 정보
+  jobId String @map("job_id") @db.VarChar(100)
+  jobType OutboxJobType @map("job_type")
+
+  // 작업 종류별 비즈니스 ID
+  referenceId Int? @map("reference_id")
+
+  // 실패 정보
+  failureReason String @map("failure_reason") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([jobId])
+
+  @@map("job_failures")
 }
 
 // ==========================================================
@@ -174,6 +202,7 @@ enum OutboxStatus {
 enum OutboxJobType {
   CONTENT_REGISTRATION
   TRADE_APPROVAL
+  ACCOUNT_REGISTRATION
 }
 
 enum OutboxEventType {
@@ -182,6 +211,7 @@ enum OutboxEventType {
   TRANSACTION_COMPLETED
   TRANSACTION_FAILED
   PROOF_FAILED
+  ACCOUNT_REGISTRATION_RESULT
 }
 
 model TransactionOutbox {
@@ -190,51 +220,28 @@ model TransactionOutbox {
 
   // 원본 작업 ID
   jobId String @map("job_id") @db.VarChar(100)
-
   // 작업 종류
   jobType OutboxJobType @map("job_type")
-
   // 다음 단계에서 수행할 작업
   eventType OutboxEventType @map("event_type")
 
-  // 실패 이유
-  failReason String? @map("fail_reason") @db.Text
-
-  // 실패 발생 시각 (PROOF_REQUESTED 시각 근사치)
-  requestedAt DateTime? @map("requested_at")
-
-  // 실패 단계 (PROOF / BLOCKCHAIN)
-  failedStage FailedStage? @map("failed_stage")
-
-  // CONTENT_REGISTRATION일 때 사용
-  registrationId Int? @map("registration_id")
-
-  // TRADE_APPROVAL일 때 사용
-  purchaseId Int? @map("purchase_id")
-
   // 메시지큐 전달 상태
   status OutboxStatus @default(PENDING)
-
-  // 메시지큐 publish 완료 시각
-  publishedAt DateTime? @map("published_at")
-
+ 
   // 재시도 횟수
   retryCount Int @default(0) @map("retry_count")
-
   // 마지막 실패 원인
   lastError String? @map("last_error") @db.Text
 
+  // 메시지큐 publish 완료 시각
+  publishedAt DateTime? @map("published_at")
   createdAt DateTime @default(now()) @map("created_at")
-
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([jobId, eventType])
 
-  @@index([status, createdAt])
-
   @@index([jobId])
-
-  @@index([jobType, status])
+  @@index([status, createdAt])
 
   @@map("transaction_outbox")
 }

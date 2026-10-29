@@ -112,41 +112,17 @@ export async function findContentRegistrationByJobIdWithRetry(
     );
 }
 
-export async function failJubOutboxWithRetry(
+export async function failJobOutboxWithRetry(
     job: ProofRequestedMessage,
     reason: string,
 ): Promise<void> {
     await withDbRetry(
-        () => failJubOutbox(job, reason),
+        () => transactionRepository.createFailureWithOutbox(
+          job,reason),
         {
             operationName: `failJob:${job.jobId}`,
         },
     );
-}
-
-async function failJubOutbox(
-    job: ProofRequestedMessage,
-    reason: string,
-): Promise<void> {
-    if (job.proofType === "CONTENT_REGISTRATION") {
-        await outboxRepository.create({
-            jobId: job.jobId,
-            jobType: job.proofType,
-            eventType: "PROOF_FAILED",
-            failReason: reason,
-            registrationId: job.registrationId,
-        });
-
-        return;
-    }
-
-    await outboxRepository.create({
-        jobId: job.jobId,
-        jobType: job.proofType,
-        eventType: "PROOF_FAILED",
-        failReason: reason,
-        purchaseId: job.purchaseId,
-    })
 }
 
 export async function getContentRegistrationSourceWithRetry(
