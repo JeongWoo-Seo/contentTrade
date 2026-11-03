@@ -312,18 +312,14 @@ export class SymmetricKeyEncryption {
     }
 
     private parseField(value: string | bigint): bigint {
-        const n = typeof value === "bigint"
-            ? value
-            : BigInt(value);
-
-        if (n < 0n || n >= this.p) {
-            throw new RangeError(
-                "Data must be in the field range",
-            );
-        }
-
-        return n;
+    if (typeof value === "bigint") {
+        return value;
     }
+
+    return BigInt(
+        value.startsWith("0x") ? value : `0x${value}`
+    );
+}
 
     private toHex(value: bigint): string {
         return value.toString(16);

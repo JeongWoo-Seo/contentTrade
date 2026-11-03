@@ -46,8 +46,8 @@ const TEST_ACCOUNT_INDEX_KEY = 'test-account-index';
 
 export function getNextTestAccountIndex(): number {
   const storedIndex = localStorage.getItem(TEST_ACCOUNT_INDEX_KEY);
-  const accountIndex = storedIndex === null ? 1 : Number(storedIndex);
-
+  //const accountIndex = storedIndex === null ? 1 : Number(storedIndex);
+const accountIndex =2
   if (
     !Number.isSafeInteger(accountIndex) ||
     accountIndex < 1 ||
