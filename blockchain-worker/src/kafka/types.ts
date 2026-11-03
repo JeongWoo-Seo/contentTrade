@@ -1,3 +1,4 @@
+import type { OutboxEventType, OutboxJobType } from "@prisma/client";
 
 type FailedStage = "PROOF" | "BLOCKCHAIN";
 
@@ -9,16 +10,41 @@ interface BaseMessage {
 interface BaseJobFailedMessage extends BaseMessage {
   failedStage: FailedStage;
   reason: string;
+  referenceId: number;
 }
 
 interface RegistrationJobFailedMessage extends BaseJobFailedMessage {
-  proofType: "CONTENT_REGISTRATION";
-  registrationId: number;
+  jobType: "CONTENT_REGISTRATION";
 }
 
 interface TradeJobFailedMessage extends BaseJobFailedMessage {
-  proofType: "TRADE_APPROVAL";
-  purchaseId: number;
+  jobType: "TRADE_APPROVAL";
 }
 
 export type JobFailedMessage = RegistrationJobFailedMessage | TradeJobFailedMessage;
+
+export interface AccountResultMessage {
+  jobId: string;
+  jobType: "ACCOUNT_REGISTRATION";
+  eventType: string;
+  result: "ACTIVE" | "REJECTED";
+  reason?: string;
+  referenceId: number;
+}
+
+export interface AccountRegistrationRequestMessage {
+  jobId: string;
+  jobType: "ACCOUNT_REGISTRATION";
+  eventType: string;
+  addr: string;
+  txHash: string;
+  referenceId: number;
+}
+
+export interface proofWorkMessage {
+  jobId: string;
+  jobType: "CONTENT_REGISTRATION" | "TRADE_APPROVAL";
+  eventType: OutboxEventType;
+}
+
+export type ReceiptMessage = proofWorkMessage | AccountRegistrationRequestMessage;

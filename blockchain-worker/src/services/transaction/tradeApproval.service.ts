@@ -16,6 +16,7 @@ import { sleep } from "../../utils/sleep.js";
 import { contentTradeContract } from "../../blockchain/blockchian.js";
 import { isError } from "ethers";
 import { isRetryableRpcError, getErrorReason } from "../../utils/blockchain-error.js";
+import { transactionRepository } from "../../repositories/transation.repository.js";
 
 /**
  * Trade Approval Transaction 처리
@@ -474,54 +475,10 @@ async function failTradeApprovalJobWithRetry(
         id: number;
         jobId: string;
         purchaseId: number;
-        createdAt: Date;
     },
     reason: string,
 ) {
-    return retryBase(() => failTradeApprovalJob(job, reason), {
+    return retryBase(() => transactionRepository.failTradeApproval(job,reason), {
         operationName: `fail trade approval jobId=${job.jobId}`,
-    });
-}
-
-async function failTradeApprovalJob(
-    job: {
-        id: number;
-        jobId: string;
-        purchaseId: number;
-        createdAt: Date;
-    },
-    reason: string,
-): Promise<void> {
-    await prisma.$transaction(async (tx) => {
-        const updated = await tx.tradeApprovalTransaction.updateMany({
-            where: {
-                id: job.id,
-                status: "PROCESSING",
-            },
-            data: {
-                status: "FAILED",
-                failureReason: reason,
-            },
-        });
-
-        if (updated.count === 0) {
-            console.warn(
-                `[blockchain-worker] failed to transition ` +
-                `PROCESSING → FAILED, job may already be handled ` +
-                `jobId=${job.jobId}`,
-            );
-
-            return;
-        }
-
-        await outboxRepository.create(tx, {
-            jobId: job.jobId,
-            jobType: "TRADE_APPROVAL",
-            eventType: "TRANSACTION_FAILED",
-            purchaseId: job.purchaseId,
-            requestedAt: job.createdAt,
-            failedStage: "BLOCKCHAIN",
-            failReason: reason,
-        });
     });
 }

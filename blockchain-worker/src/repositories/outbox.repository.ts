@@ -1,10 +1,10 @@
 import { prisma } from "../lib/prisma.js";
 import type {
-  FailedStage,
   OutboxEventType,
   OutboxJobType,
   Prisma,
 } from "@prisma/client";
+import { AccountRegistrationRequestMessage } from "../kafka/types.js";
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
@@ -12,17 +12,13 @@ export interface OutboxCreateInput {
   jobId: string;
   jobType: OutboxJobType;
   eventType: OutboxEventType;
-  registrationId?: number | null;
-  purchaseId?: number | null;
-  requestedAt?: Date | null;
-  failedStage?: FailedStage | null;
-  failReason?: string | null;
+  jobFailureReason?: string | null;
 }
 
 export const outboxRepository = {
   /**
    * Outbox 레코드 생성. 반드시 DB 상태 변경과 같은 transaction 안에서 호출한다.
-   * 실패 이벤트(TRANSACTION_FAILED)는 실패 메시지 생성에 필요한 데이터를 함께 저장한다.
+   * 실패 이벤트(TRANSACTION_FAILED 등)는 Kafka로 전달할 실패 사유를 함께 저장한다.
    */
   async create(tx: DbClient, data: OutboxCreateInput) {
     return tx.transactionOutbox.create({
@@ -30,12 +26,7 @@ export const outboxRepository = {
         jobId: data.jobId,
         jobType: data.jobType,
         eventType: data.eventType,
-        registrationId: data.registrationId ?? null,
-        purchaseId: data.purchaseId ?? null,
-        requestedAt: data.requestedAt ?? null,
-        failedStage: data.failedStage ?? null,
-        failReason: data.failReason ?? null,
-        status: "PENDING",
+        status: "PENDING"
       },
     });
   },
@@ -70,10 +61,10 @@ export const outboxRepository = {
       },
     });
   },
+
   /**
-   * Receipt 재확인을 위해 해당 job의 RECEIPT_CHECK_REQUESTED Outbox를 PENDING으로 되돌린다.
-   * Outbox worker가 다음 poll에서 확인 메시지를 재발행한다.
-   * 이미 PENDING이어도 안전(no-op)하며 publishedAt을 초기화한다.
+   * Receipt 재확인을 위해 해당 job의 RECEIPT_CHECK_REQUESTED Outbox를
+   * PENDING으로 되돌린다(중복 생성 없이 업데이트). 이미 PENDING이어도 no-op.
    */
   async markPendingForReceiptRetry(jobId: string) {
     return prisma.transactionOutbox.updateMany({
@@ -94,7 +85,6 @@ export const outboxRepository = {
         jobId: r.jobId,
         jobType: r.jobType,
         eventType: r.eventType,
-        status: "PENDING" as const,
       })),
       skipDuplicates: true,
     });

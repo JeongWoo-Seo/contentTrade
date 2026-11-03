@@ -1,16 +1,16 @@
 import { Kafka, type EachMessagePayload } from "kafkajs";
 import { env } from "../config/env.js";
-import type { WorkMessage } from "./topics.js";
+import type { ReceiptMessage } from "./types.js";
 
 const kafka = new Kafka({
   clientId: `${env.kafkaClientId}-consumer`,
   brokers: env.kafkaBrokers,
 });
 
-export interface ConsumerOptions {
+export interface ConsumerOptions<T = ReceiptMessage> {
   topic: string;
   groupId: string;
-  process: (message: WorkMessage) => Promise<void>;
+  process: (message: T) => Promise<void>;
   shouldRun: () => boolean;
 }
 
@@ -23,7 +23,7 @@ export interface ConsumerOptions {
  * - 같은 groupId의 consumer들이 partition을 분담한다.
  * await options.process(workMessage); 내에서는 무조건 같은 메시지가 입력되어도 중복 문제가 없도록 처리가 필요.
  */
-export async function startConsumer(options: ConsumerOptions): Promise<void> {
+export async function startConsumer<T = ReceiptMessage>(options: ConsumerOptions<T>): Promise<void> {
   const consumer = kafka.consumer({ groupId: options.groupId, allowAutoTopicCreation: false });
 
   await consumer.connect();
@@ -36,7 +36,7 @@ export async function startConsumer(options: ConsumerOptions): Promise<void> {
         return;
       }
       try {
-        const workMessage = parseWorkMessage(payload.message.value);
+        const workMessage = parseWorkMessage(payload.message.value) as T;
         await options.process(workMessage);
 
         // 처리 성공 → 다음 offset commit
@@ -64,8 +64,8 @@ export async function startConsumer(options: ConsumerOptions): Promise<void> {
   await runPromise.catch(() => {});
 }
 
-function parseWorkMessage(value: Buffer | null): WorkMessage {
-  return JSON.parse(value?.toString() ?? "{}") as WorkMessage;
+function parseWorkMessage(value: Buffer | null): unknown {
+  return JSON.parse(value?.toString() ?? "{}");
 }
 
 function sleep(ms: number): Promise<void> {

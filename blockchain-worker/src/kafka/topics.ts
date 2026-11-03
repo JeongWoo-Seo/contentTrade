@@ -1,11 +1,5 @@
-import type { OutboxEventType, OutboxJobType } from "@prisma/client";
+import type { OutboxEventType } from "@prisma/client";
 import { env } from "../config/env.js";
-
-export interface WorkMessage {
-  jobId: string;
-  jobType: OutboxJobType;
-  eventType: OutboxEventType;
-}
 
 // 단계별 Kafka topic
 export const TOPICS = {
@@ -13,6 +7,7 @@ export const TOPICS = {
   receipt: env.kafkaReceiptTopic,
   result: env.kafkaResultTopic,
   fail: env.kafkaFailureTopic,
+  accountResult: env.kafkaAccountRegistrationResultTopic,
 } as const;
 
 // 단계별 Consumer Group
@@ -38,6 +33,8 @@ export function topicForEventType(eventType: OutboxEventType): string {
     case "TRANSACTION_FAILED":
     case "PROOF_FAILED":
       return TOPICS.fail;
+    case "ACCOUNT_REGISTRATION_RESULT":
+      return TOPICS.accountResult;
     default:
       throw new Error(`[blockchain-worker] unknown event type: ${eventType}`);
   }

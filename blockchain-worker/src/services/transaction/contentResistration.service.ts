@@ -13,6 +13,8 @@ import { contentTradeContract, wallet } from "../../blockchain/blockchian.js";
 import { isError } from "ethers";
 import { isRetryableRpcError, getErrorReason } from "../../utils/blockchain-error.js"
 import { type TransactionInput, Groth16Proof } from "../../blockchain/type.js";
+import { transactionRepository } from "../../repositories/transation.repository.js";
+
 /**
  * Content Registration Transaction 처리
  *
@@ -44,7 +46,7 @@ export async function processContentRegistration(
     const simulation = await simulateContentRegistrationWithRetry(job);
 
     if (!simulation.success) {
-      await failContentRegistrationJobWithRetry(
+      await failContentRegistrationWithRetry(
         job,
         simulation.reason,
       );
@@ -63,7 +65,7 @@ export async function processContentRegistration(
     console.info(`[transaction-worker] operation=submitTransaction status=started jobId=${jobId}`);
     const submitted = await submitTransaction(transaction);
     if (!submitted.success) {
-      await failContentRegistrationJobWithRetry(
+      await failContentRegistrationWithRetry(
         job,
         submitted.reason,
       );
@@ -395,59 +397,22 @@ async function markContentRegistrationSubmitted({
   });
 }
 
-async function failContentRegistrationJobWithRetry(
+async function failContentRegistrationWithRetry(
   job: {
     id: number;
     jobId: string;
     registrationId: number;
-    createdAt: Date;
   },
   reason: string,
 ) {
-  return withDbRetry(() => failContentRegistrationJob(job, reason), {
+  return withDbRetry(() => transactionRepository.failContentRegistration(
+        {
+          id: job.id,
+          jobId: job.jobId,
+          registrationId: job.registrationId,
+        },
+        reason,
+      ), {
     operationName: `fail content registration jobId=${job.jobId}`,
-  });
-}
-
-async function failContentRegistrationJob(
-  job: {
-    id: number;
-    jobId: string;
-    registrationId: number;
-    createdAt: Date;
-  },
-  reason: string,
-): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    const updated = await tx.contentRegistrationTransaction.updateMany({
-      where: {
-        id: job.id,
-        status: "PROCESSING",
-      },
-      data: {
-        status: "FAILED",
-        failureReason: reason,
-      },
-    });
-
-    if (updated.count === 0) {
-      console.warn(
-        `[transaction-worker] failed to transition ` +
-        `PROCESSING → FAILED, job may already be handled ` +
-        `jobId=${job.jobId}`,
-      );
-
-      return;
-    }
-
-    await outboxRepository.create(tx, {
-      jobId: job.jobId,
-      jobType: "CONTENT_REGISTRATION",
-      eventType: "TRANSACTION_FAILED",
-      registrationId: job.registrationId,
-      requestedAt: job.createdAt,
-      failedStage: "BLOCKCHAIN",
-      failReason: reason,
-    });
   });
 }

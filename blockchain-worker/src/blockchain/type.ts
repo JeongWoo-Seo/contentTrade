@@ -24,12 +24,22 @@ export type Eip1559Fee = {
   maxPriorityFeePerGas: bigint;
 };
 
-export interface ReceiptCheckResult {
-  confirmed: boolean;
-  failed: boolean;
-  status?: number | null;
-  transactionHash?: string;
-}
+export type ReceiptCheckResult =
+  | {
+      status: "PENDING";
+      txHash: string;
+      reason: null;
+    }
+  | {
+      status: "CONFIRMED";
+      txHash: string;
+      reason: null;
+    }
+  | {
+      status: "FAILED";
+      txHash: string;
+      reason: string;
+    };
 
 export type Groth16Proof = {
   pi_a: [string, string, string];

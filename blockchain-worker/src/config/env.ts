@@ -19,6 +19,7 @@ export const env = {
   kafkaTransactionTopic: process.env.KAFKA_TRANSACTION_TOPIC ?? "blockchain_transaction",
   kafkaReceiptTopic: process.env.KAFKA_RECEIPT_TOPIC ?? "blockchain_receipt",
   kafkaResultTopic: process.env.KAFKA_RESULT_TOPIC ?? "blockchain_result",
+  kafkaAccountRegistrationResultTopic: process.env.KAFKA_ACCOUNT_REGISTRATION_RESULT_TOPIC ?? "account_registration_result",
 
   kafkaTransactionGroup: process.env.KAFKA_TRANSACTION_GROUP ?? "transaction-workers",
   kafkaReceiptGroup: process.env.KAFKA_RECEIPT_GROUP ?? "receipt-workers",

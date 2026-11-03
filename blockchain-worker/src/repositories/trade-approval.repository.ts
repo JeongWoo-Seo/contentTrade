@@ -94,7 +94,7 @@ export const tradeApprovalTransactionRepository = {
       where: { id },
       data: {
         status: "FAILED",
-        failureReason: reason,
+        jobFailureReason: reason,
         retryCount: {
           increment: 1,
         },

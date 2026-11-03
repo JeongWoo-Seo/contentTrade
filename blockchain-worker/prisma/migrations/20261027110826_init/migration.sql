@@ -1,14 +1,20 @@
 -- CreateEnum
-CREATE TYPE "TransactionJobStatus" AS ENUM ('PENDING', 'PROCESSING', 'CONFIRMED', 'FAILED');
+CREATE TYPE "TransactionJobStatus" AS ENUM ('PENDING', 'PROCESSING', 'SUBMITTED', 'CONFIRMED', 'FAILED');
+
+-- CreateEnum
+CREATE TYPE "AccountRegistrationStatus" AS ENUM ('PENDING', 'CHECKING', 'CONFIRMED', 'FAILED');
+
+-- CreateEnum
+CREATE TYPE "FailedStage" AS ENUM ('PROOF', 'BLOCKCHAIN');
 
 -- CreateEnum
 CREATE TYPE "OutboxStatus" AS ENUM ('PENDING', 'PUBLISHED', 'FAILED');
 
 -- CreateEnum
-CREATE TYPE "OutboxJobType" AS ENUM ('CONTENT_REGISTRATION', 'TRADE_APPROVAL');
+CREATE TYPE "OutboxJobType" AS ENUM ('CONTENT_REGISTRATION', 'TRADE_APPROVAL', 'ACCOUNT_REGISTRATION');
 
 -- CreateEnum
-CREATE TYPE "OutboxEventType" AS ENUM ('TRANSACTION_REQUESTED', 'RECEIPT_CHECK_REQUESTED', 'TRANSACTION_COMPLETED', 'TRANSACTION_FAILED');
+CREATE TYPE "OutboxEventType" AS ENUM ('TRANSACTION_REQUESTED', 'RECEIPT_CHECK_REQUESTED', 'TRANSACTION_COMPLETED', 'TRANSACTION_FAILED', 'PROOF_FAILED');
 
 -- CreateTable
 CREATE TABLE "content_registration_transactions" (
@@ -17,21 +23,21 @@ CREATE TABLE "content_registration_transactions" (
     "registration_id" INTEGER NOT NULL,
     "proof" TEXT NOT NULL,
     "public_signals" TEXT NOT NULL,
-    "encrypted_data" TEXT NOT NULL,
-    "data_iv" VARCHAR(255) NOT NULL,
-    "encrypted_data_key" TEXT NOT NULL,
-    "key_iv" VARCHAR(255) NOT NULL,
-    "key_auth_tag" VARCHAR(255) NOT NULL,
-    "encryption_version" INTEGER NOT NULL,
-    "key_hash" VARCHAR(255) NOT NULL,
-    "encrypted_data_hash" VARCHAR(255) NOT NULL,
-    "content_hash" VARCHAR(255) NOT NULL,
+    "encrypted_data" BYTEA NOT NULL,
+    "encrypted_data_key" BYTEA NOT NULL,
+    "ct_r" VARCHAR(80) NOT NULL,
+    "encryption_version" INTEGER NOT NULL DEFAULT 1,
+    "h_k" VARCHAR(80) NOT NULL,
+    "h_data" VARCHAR(80) NOT NULL,
+    "h_ct" VARCHAR(80) NOT NULL,
     "tx_hash" VARCHAR(255),
+    "nonce" INTEGER,
     "status" "TransactionJobStatus" NOT NULL DEFAULT 'PENDING',
-    "submitted_at" TIMESTAMP(3),
-    "confirmed_at" TIMESTAMP(3),
     "failure_reason" TEXT,
     "retry_count" INTEGER NOT NULL DEFAULT 0,
+    "submitted_at" TIMESTAMP(3),
+    "confirmed_at" TIMESTAMP(3),
+    "processing_started_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -47,6 +53,8 @@ CREATE TABLE "trade_approval_transactions" (
     "public_signals" TEXT NOT NULL,
     "status" "TransactionJobStatus" NOT NULL DEFAULT 'PENDING',
     "tx_hash" VARCHAR(255),
+    "nonce" INTEGER,
+    "processing_started_at" TIMESTAMP(3),
     "submitted_at" TIMESTAMP(3),
     "confirmed_at" TIMESTAMP(3),
     "failure_reason" TEXT,
@@ -58,11 +66,32 @@ CREATE TABLE "trade_approval_transactions" (
 );
 
 -- CreateTable
+CREATE TABLE "user_registration_checks" (
+    "id" SERIAL NOT NULL,
+    "job_id" VARCHAR(100) NOT NULL,
+    "addr" VARCHAR(255) NOT NULL,
+    "tx_hash" VARCHAR(255) NOT NULL,
+    "status" "AccountRegistrationStatus" NOT NULL DEFAULT 'PENDING',
+    "confirmed_at" TIMESTAMP(3),
+    "failure_reason" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "user_registration_checks_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "transaction_outbox" (
     "id" SERIAL NOT NULL,
     "job_id" VARCHAR(100) NOT NULL,
     "job_type" "OutboxJobType" NOT NULL,
     "event_type" "OutboxEventType" NOT NULL,
+    "fail_reason" TEXT,
+    "requested_at" TIMESTAMP(3),
+    "failed_stage" "FailedStage",
+    "registration_id" INTEGER,
+    "purchase_id" INTEGER,
+    "account_registration_id" INTEGER,
     "status" "OutboxStatus" NOT NULL DEFAULT 'PENDING',
     "published_at" TIMESTAMP(3),
     "retry_count" INTEGER NOT NULL DEFAULT 0,
@@ -110,6 +139,15 @@ CREATE INDEX "trade_approval_transactions_created_at_idx" ON "trade_approval_tra
 CREATE INDEX "trade_approval_transactions_status_created_at_idx" ON "trade_approval_transactions"("status", "created_at");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "user_registration_checks_job_id_key" ON "user_registration_checks"("job_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_registration_checks_tx_hash_key" ON "user_registration_checks"("tx_hash");
+
+-- CreateIndex
+CREATE INDEX "user_registration_checks_addr_idx" ON "user_registration_checks"("addr");
+
+-- CreateIndex
 CREATE INDEX "transaction_outbox_status_created_at_idx" ON "transaction_outbox"("status", "created_at");
 
 -- CreateIndex
@@ -120,3 +158,6 @@ CREATE INDEX "transaction_outbox_job_type_status_idx" ON "transaction_outbox"("j
 
 -- CreateIndex
 CREATE UNIQUE INDEX "transaction_outbox_job_id_event_type_key" ON "transaction_outbox"("job_id", "event_type");
+
+-- AddForeignKey
+ALTER TABLE "transaction_outbox" ADD CONSTRAINT "transaction_outbox_account_registration_id_fkey" FOREIGN KEY ("account_registration_id") REFERENCES "user_registration_checks"("id") ON DELETE SET NULL ON UPDATE CASCADE;

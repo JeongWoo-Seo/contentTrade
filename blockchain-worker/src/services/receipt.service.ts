@@ -1,26 +1,93 @@
-import { checkContentRegistrationReceipt, checkTradeApprovalReceipt } from "../blockchain/blockchain.service.js";
+import { checkContentRegistrationReceipt, checkTradeApprovalReceipt, checkAccountRegistrationReceipt } from "../blockchain/blockchain.service.js";
 import { contentRegistrationTransactionRepository } from "../repositories/content-registration.repository.js";
 import { tradeApprovalTransactionRepository } from "../repositories/trade-approval.repository.js";
+import { accountRegistrationRepository } from "../repositories/account-registration.repository.js";
 import { transactionRepository } from "../repositories/transation.repository.js";
-import { outboxRepository } from "../repositories/outbox.repository.js";
 import { withDbRetry } from "../utils/retry.js";
 import type {
   ContentRegistrationTransaction,
   TradeApprovalTransaction,
-  OutboxJobType,
 } from "@prisma/client";
 import type { ReceiptCheckResult } from "../blockchain/type.js";
+import { type ReceiptMessage, AccountRegistrationRequestMessage } from "../kafka/types.js";
+import { outboxRepository } from "../repositories/outbox.repository.js";
 
 export async function processReceiptCheck(
-  jobId: string,
-  jobType: OutboxJobType,
+  message: ReceiptMessage
 ): Promise<void> {
-  if (jobType === "CONTENT_REGISTRATION") {
-    await processContentRegistrationReceipt(jobId);
-  } else {
-    await processTradeApprovalReceipt(jobId);
+  switch (message.jobType) {
+    case "CONTENT_REGISTRATION":
+      await processContentRegistrationReceipt(message.jobId);
+      break;
+
+    case "TRADE_APPROVAL":
+      await processTradeApprovalReceipt(message.jobId);
+      break;
+
+    case "ACCOUNT_REGISTRATION":
+      await processAccountRegistrationReceipt(message);
+      break;
+
+    default:
+      throw new Error(`Unsupported receipt job type`);
   }
 }
+
+///////////////////////////////////////////
+//        AccountRegistration
+///////////////////////////////////////////
+
+async function processAccountRegistrationReceipt(
+  message: AccountRegistrationRequestMessage
+): Promise<void> {
+  //validateAccountRegistrationMessage(message);
+
+  const job = await accountRegistrationRepository.claimOrCreatePendingReceipt({
+    jobId: message.jobId,
+    userId: message.referenceId,
+    addr: message.addr,
+    txHash: message.txHash,
+  });
+  if (!job) {
+    throw new Error(`Account registration accountRegistrationRepository claimOrCreatePendingReceipt fail: jobId=${message.jobId}`);
+  }
+  if (job.status !== "PENDING") {
+    return;
+  }
+
+  const result = await checkAccountRegistrationReceipt(job.txHash, job.addr);
+
+  // 아직 블록에 포함되지 않음 → Outbox를 PENDING으로 되돌려 재발행
+  if (result.status === "CONFIRMED") {
+    await confirmAccountRegistrationWithRetry(job.jobId);
+  } else if (result.status === "PENDING") {
+    await markReceiptCheckPendingWithRetry(job.jobId);
+  }// 블록체인 실행 실패
+  else {
+    await failAccountRegistrationWithRetry(job.jobId, result);
+  }
+}
+
+async function confirmAccountRegistrationWithRetry(jobId: string): Promise<void> {
+  withDbRetry(
+    () => transactionRepository.accountRegistrationConfirm(jobId),
+    { operationName: `confirmAccountRegistration:${jobId}` },
+  );
+}
+
+async function failAccountRegistrationWithRetry(
+  jobId: string,
+  result: Extract<ReceiptCheckResult, { status: "FAILED" }>,
+): Promise<void> {
+  withDbRetry(
+    () => transactionRepository.accountRegistratioFail(jobId, result.reason),
+    { operationName: `failAccountRegistration:${jobId}` },
+  );
+}
+
+///////////////////////////////////////////
+//        ContentRegistration
+///////////////////////////////////////////
 
 async function processContentRegistrationReceipt(
   jobId: string,
@@ -30,84 +97,19 @@ async function processContentRegistrationReceipt(
     return;
   }
 
-  const receipt = await checkContentRegistrationReceipt(job.txHash!);
+  const result = await checkContentRegistrationReceipt(job.txHash!);
 
   // 아직 블록에 포함되지 않음 → Outbox를 PENDING으로 되돌려 재발행
-  if (!receipt.confirmed && !receipt.failed) {
+  if (result.status === "PENDING") {
     await markReceiptCheckPendingWithRetry(job.jobId);
-    console.error(
-      `[receipt-worker] content registration not yet ` +
-      `jobId=${job.jobId} ` +
-      `txHash=${receipt.transactionHash}`,
-    );
-    return;
   }
-
   // 블록체인 실행 실패
-  if (receipt.failed) {
-    await failContentRegistrationWithRetry(job, receipt);
-
-    console.error(
-      `[receipt-worker] content registration FAILED ` +
-      `jobId=${job.jobId} ` +
-      `txHash=${receipt.transactionHash}`,
-    );
-
-    return;
+  else if (result.status === "FAILED") {
+    await failContentRegistrationWithRetry(job, result);
+  } else {
+    // 블록체인 실행 성공
+    await confirmContentRegistrationWithRetry(job);
   }
-
-  // 블록체인 실행 성공
-  await confirmContentRegistrationWithRetry(job);
-
-  console.log(
-    `[receipt-worker] content registration CONFIRMED ` +
-    `jobId=${job.jobId}`,
-  );
-}
-
-async function processTradeApprovalReceipt(jobId: string): Promise<void> {
-  const job = await tradeApprovalTransactionRepository.findByJobId(jobId);
-  if (!job || job.status !== "SUBMITTED") {
-    return;
-  }
-
-  const receipt = await checkTradeApprovalReceipt(job.txHash!);
-
-  if (!receipt.confirmed && !receipt.failed) {
-    await markReceiptCheckPendingWithRetry(job.jobId);
-    return;
-  }
-
-  if (receipt.failed) {
-    await failTradeApprovalWithRetry(job, receipt);
-
-    console.error(
-      `[receipt-worker] trade approval FAILED ` +
-      `jobId=${job.jobId} ` +
-      `txHash=${receipt.transactionHash}`,
-    );
-
-    return;
-  }
-
-  await confirmTradeApprovalWithRetry(job);
-
-  console.log(
-    `[receipt-worker] trade approval CONFIRMED ` +
-    `jobId=${job.jobId}`,
-  );
-}
-
-/**
- * Receipt 미확정 시 해당 job의 RECEIPT_CHECK_REQUESTED Outbox를 PENDING으로 되돌린다.
- * Outbox worker가 확인 메시지를 재발행한다. DB 반영 실패 시 throw하여
- * Kafka consumer가 offset을 commit하지 않도록 한다.
- */
-async function markReceiptCheckPendingWithRetry(jobId: string): Promise<void> {
-  await withDbRetry(
-    () => outboxRepository.markPendingForReceiptRetry(jobId),
-    { operationName: `markReceiptCheckPending:${jobId}` },
-  );
 }
 
 async function failContentRegistrationWithRetry(
@@ -124,6 +126,40 @@ async function failContentRegistrationWithRetry(
   );
 }
 
+async function confirmContentRegistrationWithRetry(
+  job: ContentRegistrationTransaction,
+): Promise<boolean> {
+  return withDbRetry(
+    () => transactionRepository.confirmContentRegistration(job),
+    {
+      operationName: `confirmContentRegistration:${job.jobId}`,
+    },
+  );
+}
+
+///////////////////////////////////////////
+//        TradeApproval
+///////////////////////////////////////////
+
+async function processTradeApprovalReceipt(jobId: string): Promise<void> {
+  const job = await tradeApprovalTransactionRepository.findByJobId(jobId);
+  if (!job || job.status !== "SUBMITTED") {
+    return;
+  }
+
+  const result = await checkTradeApprovalReceipt(job.txHash!);
+
+  if (result.status === "PENDING") {
+    await markReceiptCheckPendingWithRetry(job.jobId);
+    return;
+  } else if (result.status === "FAILED") {
+    await failTradeApprovalWithRetry(job, result);
+    return;
+  } else {
+    await confirmTradeApprovalWithRetry(job);
+  }
+}
+
 async function failTradeApprovalWithRetry(
   job: TradeApprovalTransaction,
   receipt: ReceiptCheckResult,
@@ -138,17 +174,6 @@ async function failTradeApprovalWithRetry(
   );
 }
 
-async function confirmContentRegistrationWithRetry(
-  job: ContentRegistrationTransaction,
-): Promise<boolean> {
-  return withDbRetry(
-    () => transactionRepository.confirmContentRegistration(job),
-    {
-      operationName: `confirmContentRegistration:${job.jobId}`,
-    },
-  );
-}
-
 async function confirmTradeApprovalWithRetry(
   job: TradeApprovalTransaction,
 ): Promise<boolean> {
@@ -157,5 +182,12 @@ async function confirmTradeApprovalWithRetry(
     {
       operationName: `confirmTradeApproval:${job.jobId}`,
     },
+  );
+}
+
+async function markReceiptCheckPendingWithRetry(jobId: string): Promise<void> {
+  await withDbRetry(
+    () => outboxRepository.markPendingForReceiptRetry(jobId),
+    { operationName: `markReceiptCheckPendingRetry:${jobId}` },
   );
 }

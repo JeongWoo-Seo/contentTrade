@@ -1,7 +1,6 @@
-import { ethers } from "ethers";
+import { ethers, ZeroAddress } from "ethers";
 import { provider, wallet, contentTradeContract } from "./blockchian.js";
 import { TransactionInput, SignedTransaction, Eip1559Fee, ReceiptCheckResult, Groth16Proof } from "./type.js";
-
 
 export async function getPendingNonce(): Promise<number> {
   return provider.getTransactionCount(
@@ -54,7 +53,7 @@ export async function simulateOnChain(
 
   if (
     !Array.isArray(parsedPublicSignals) || parsedPublicSignals.length !== 4 ||
-     !parsedPublicSignals.every((signal) => typeof signal === "string")) {
+    !parsedPublicSignals.every((signal) => typeof signal === "string")) {
     throw new Error(
       `Expected 4 public signals, got ${Array.isArray(parsedPublicSignals)
         ? parsedPublicSignals.length
@@ -154,6 +153,86 @@ export async function checkTradeApprovalReceipt(
 }
 
 /**
+ * User Registration(회원가입) 트랜잭션 receipt 확인
+ */
+export async function checkAccountRegistrationReceipt(
+  txHash: string,
+  addr: string,
+): Promise<ReceiptCheckResult> {
+  // 1. 트랜잭션 Receipt 확인
+  const receipt = await provider.getTransactionReceipt(txHash);
+
+  if (!receipt) {
+    // 아직 블록에 포함되지 않음
+    return {
+      status: "PENDING",
+      txHash: txHash,
+      reason: null,
+    };
+  }
+
+  // 2. EVM 실행 실패 확인
+  if (receipt.status !== 1) {
+    return {
+      status: "FAILED",
+      reason: "Account registration transaction reverted",
+      txHash: txHash,
+    };
+  }
+
+  // 3. 트랜잭션 원본 조회
+  const tx = await provider.getTransaction(txHash);
+
+  if (!tx) {
+    throw new Error(`Transaction not found: ${txHash}`);
+  }
+
+  // 5. registUser 호출인지 확인하고 addr 검증
+  const parsed = contentTradeContract.interface.parseTransaction({
+    data: tx.data,
+    value: tx.value,
+  });
+
+  if (!parsed || parsed.name !== "registUser") {
+    return {
+      status: "FAILED",
+      reason: "Transaction did not call registUser",
+      txHash: txHash,
+    };
+  }
+
+  const expectedAddr = BigInt(`0x${addr}`);
+  const registeredAddr = BigInt(parsed.args[0].toString());
+
+  if (registeredAddr !== expectedAddr) {
+    return {
+      status: "FAILED",
+      reason: "Registered addr does not match requested addr",
+      txHash,
+    };
+  }
+
+  // 6. 컨트랙트의 실제 등록 정보 확인
+  const userInfo = await contentTradeContract
+    .getFunction("_userInfoMap")
+    .staticCall(expectedAddr);
+
+  if (userInfo.own === ZeroAddress) {
+    return {
+      status: "FAILED",
+      reason: "User is not registered on-chain",
+      txHash: txHash,
+    };
+  }
+
+  // 모든 검증 통과
+  return {
+    status: "CONFIRMED",
+    txHash: txHash,
+    reason: null,
+  };
+}
+/**
  * Ethereum transaction receipt 확인
  *
  * receipt == null
@@ -176,27 +255,25 @@ async function checkTransactionReceipt(
 
   if (!receipt) {
     return {
-      confirmed: false,
-      failed: false,
-      transactionHash: txHash,
+      status: "PENDING",
+      txHash: txHash,
+      reason: null,
     };
   }
 
   // 성공
   if (receipt.status === 1) {
     return {
-      confirmed: true,
-      failed: false,
-      status: receipt.status,
-      transactionHash: receipt.hash,
+      status: "CONFIRMED",
+      txHash: txHash,
+      reason: null,
     };
   }
 
   // EVM 실행 실패
   return {
-    confirmed: false,
-    failed: true,
-    status: receipt.status,
-    transactionHash: receipt.hash,
+    status: "FAILED",
+    reason: "transaction reverted",
+    txHash: txHash,
   };
 }

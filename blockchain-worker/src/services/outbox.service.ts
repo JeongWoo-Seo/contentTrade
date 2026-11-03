@@ -1,15 +1,12 @@
 import { outboxRepository } from "../repositories/outbox.repository.js";
-import { sendMessage, sendBlockchainFailed } from "../kafka/producer.js";
+import { sendMessage, sendBlockchainFailed, sendAccountRegistrationResult, sendAccountRegistrationRetry } from "../kafka/producer.js";
 import { topicForEventType } from "../kafka/topics.js";
 import type { TransactionOutbox } from "@prisma/client";
-import type { JobFailedMessage } from "../kafka/types.js";
+import type { JobFailedMessage, AccountResultMessage, AccountRegistrationRequestMessage } from "../kafka/types.js";
 import { withDbRetry } from "../utils/retry.js";
 import { transactionRepository } from "../repositories/transation.repository.js";
-
-const FAILURE_EVENT_TYPES = new Set([
-  "TRANSACTION_FAILED",
-  "PROOF_FAILED",
-]);
+import { accountRegistrationRepository } from "../repositories/account-registration.repository.js";
+import { jobFailureRepository } from "../repositories/jobFailure.repository.js";
 
 export async function publishNextPendingOutbox(): Promise<void> {
   const outbox = await outboxRepository.findNextPending();
@@ -46,18 +43,139 @@ export async function publishNextPendingOutbox(): Promise<void> {
 async function processOutbox(
   outbox: TransactionOutbox,
 ): Promise<void> {
-  switch (outbox.eventType) {
-    case "TRANSACTION_FAILED":
-      await processTransactionFailed(outbox);
-      return;
-
-    case "PROOF_FAILED":
-      await processProofFailed(outbox);
+  switch (outbox.jobType) {
+    case "ACCOUNT_REGISTRATION":
+      if (outbox.eventType === "RECEIPT_CHECK_REQUESTED") {
+        await processAccountRegistrationRetry(outbox)
+      } else {
+        await processAccountRegistrationResult(outbox)
+      }
       return;
 
     default:
-      await processNormalEvent(outbox);
+      switch (outbox.eventType) {
+        case "TRANSACTION_FAILED":
+          await processTransactionFailed(outbox);
+          return;
+
+        case "PROOF_FAILED":
+          await processProofFailed(outbox);
+          return;
+
+        default:
+          await processNormalEvent(outbox);
+          return;
+      }
+  }
+}
+
+///////////////////////////////////////////
+//        AccountRegistration
+///////////////////////////////////////////
+
+async function processAccountRegistrationResult(outbox: TransactionOutbox)
+  : Promise<void> {
+  await publishAccountResult(outbox)
+
+  await markOutboxPublishedWithRetry(outbox.id)
+}
+
+async function processAccountRegistrationRetry(
+  outbox: TransactionOutbox,
+): Promise<void> {
+  await publishAccountRegistrationRetry(outbox);
+
+  await markOutboxPublishedWithRetry(outbox.id);
+}
+
+async function publishAccountResult(
+  outbox: TransactionOutbox,
+): Promise<void> {
+  try {
+    const registration = await accountRegistrationRepository.findByJobId(outbox.jobId);
+    if (!registration) {
       return;
+    }
+
+    let message: AccountResultMessage;
+
+    if (registration.status === "CONFIRMED") {
+      message = {
+        jobId: registration.jobId,
+        jobType: "ACCOUNT_REGISTRATION",
+        eventType: topicForEventType(outbox.eventType),
+        result: "ACTIVE",
+        referenceId: registration.userId,
+      };
+    } else if (registration.status === "FAILED") {
+      const failure = await jobFailureRepository.findLatestFailureByJobId(outbox.jobId);
+
+      if (!failure) {
+        return;
+      }
+
+      message = {
+        jobId: registration.jobId,
+        jobType: "ACCOUNT_REGISTRATION",
+        eventType: topicForEventType(outbox.eventType),
+        result: "REJECTED",
+        referenceId: registration.userId,
+        reason: failure.failureReason,
+      };
+    } else {
+      throw new Error(
+        `Invalid account registration result status: ` +
+        `jobId=${outbox.jobId}, status=${registration.status}`,
+      );
+    }
+
+    await sendAccountRegistrationResult(message);
+  } catch (error) {
+    const reason =
+      error instanceof Error ? error.message : String(error);
+
+    console.error(
+      `[outbox-worker] account result publish failed ` +
+      `outboxId=${outbox.id} ` +
+      `jobId=${outbox.jobId} ` +
+      `reason=${reason}`,
+    );
+
+    throw error;
+  }
+}
+
+async function publishAccountRegistrationRetry(
+  outbox: TransactionOutbox,
+): Promise<void> {
+  try {
+    const registration = await accountRegistrationRepository.findByJobId(outbox.jobId);
+
+    if (!registration) {
+      throw new Error(`Account registration not found: jobId=${outbox.jobId}`);
+    }
+
+    const message = {
+      jobId: registration.jobId,
+      jobType: "ACCOUNT_REGISTRATION" as const,
+      eventType: topicForEventType(outbox.eventType),
+      addr: registration.addr,
+      txHash: registration.txHash,
+      referenceId: registration.userId,
+    } as AccountRegistrationRequestMessage;
+
+    await sendAccountRegistrationRetry(message);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+
+    console.error(
+      `[outbox-worker] ` +
+      `account result try publish failed ` +
+      `outboxId=${outbox.id} ` +
+      `jobId=${outbox.jobId} `
+    );
+
+    throw error;
   }
 }
 
@@ -67,7 +185,7 @@ async function processTransactionFailed(
   // Kafka 전송
   await publishFailure(outbox);
 
-  // Kafka 전송 성공 후 DB 작업
+  // Kafka 전송 성공 후 DB 작업 (트랜잭션 삭제 + outbox PUBLISHED)
   await markTransactionFailedProcessedWithRetry(outbox);
 }
 
@@ -94,7 +212,7 @@ async function processNormalEvent(
 async function publishFailure(
   outbox: TransactionOutbox,
 ): Promise<void> {
-  const message = buildJobFailedMessage(outbox);
+  const message = await buildJobFailedMessage(outbox);
   try {
     await sendBlockchainFailed(message);
   } catch (error) {
@@ -102,12 +220,12 @@ async function publishFailure(
 
     console.error(
       `[outbox-worker] ` +
-        `failure message publish failed ` +
-        `outboxId=${outbox.id} ` +
-        `jobId=${outbox.jobId} ` +
-        `eventType=${outbox.eventType} ` +
-        `jobType=${outbox.jobType} ` +
-        `reason=${reason}`,
+      `failure message publish failed ` +
+      `outboxId=${outbox.id} ` +
+      `jobId=${outbox.jobId} ` +
+      `eventType=${outbox.eventType} ` +
+      `jobType=${outbox.jobType} ` +
+      `reason=${reason}`,
     );
 
     throw error;
@@ -125,18 +243,19 @@ async function publishToNextWorker(
         jobId: outbox.jobId,
         jobType: outbox.jobType,
         eventType: outbox.eventType,
-      }
-  )} catch (error) {
+      },
+    );
+  } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
 
     console.error(
       `[outbox-worker] ` +
-        `next worker message publish failed ` +
-        `outboxId=${outbox.id} ` +
-        `jobId=${outbox.jobId} ` +
-        `eventType=${outbox.eventType} ` +
-        `jobType=${outbox.jobType} ` +
-        `reason=${reason}`,
+      `next worker message publish failed ` +
+      `outboxId=${outbox.id} ` +
+      `jobId=${outbox.jobId} ` +
+      `eventType=${outbox.eventType} ` +
+      `jobType=${outbox.jobType} ` +
+      `reason=${reason}`,
     );
 
     throw error;
@@ -165,54 +284,50 @@ async function markOutboxPublishedWithRetry(
   );
 }
 
-function buildJobFailedMessage(
+async function buildJobFailedMessage(
   outbox: TransactionOutbox,
-): JobFailedMessage {
+): Promise<JobFailedMessage> {
   const failedStage = getFailedStage(outbox.eventType);
+  const requestedAt = outbox.createdAt.toISOString();
 
-  const requestedAt = (outbox.createdAt).toISOString();
+  if (
+    outbox.jobType !== "CONTENT_REGISTRATION" &&
+    outbox.jobType !== "TRADE_APPROVAL"
+  ) {
+    throw new Error(
+      `Unsupported outbox job type: ${outbox.jobType}`,
+    );
+  }
 
-  const reason = outbox.failReason ?? "job failed";
+  const failure = await jobFailureRepository.findLatestFailureByJobId(outbox.jobId);
+  if (!failure) {
+    throw new Error(
+      `Job failure record not found: ` +
+      `jobId=${outbox.jobId}, jobType=${outbox.jobType}`,
+    );
+  }
+
+  const reason = failure.failureReason;
 
   if (outbox.jobType === "CONTENT_REGISTRATION") {
-    if (outbox.registrationId == null) {
-      throw new Error(
-        `registrationId is required: ` +
-          `outboxId=${outbox.id} ` +
-          `jobId=${outbox.jobId}`,
-      );
-    }
-
     return {
       jobId: outbox.jobId,
       requestedAt,
       failedStage,
       reason,
-      proofType: "CONTENT_REGISTRATION",
-      registrationId: outbox.registrationId,
+      jobType: "CONTENT_REGISTRATION",
+      referenceId: failure.referenceId,
     };
   }
 
-  if (outbox.jobType === "TRADE_APPROVAL") {
-    if (outbox.purchaseId == null) {
-      throw new Error(
-        `purchaseId is required: ` +
-          `outboxId=${outbox.id} ` +
-          `jobId=${outbox.jobId}`,
-      );
-    }
-
-    return {
-      jobId: outbox.jobId,
-      requestedAt,
-      failedStage,
-      reason,
-      proofType: "TRADE_APPROVAL",
-      purchaseId: outbox.purchaseId,
-    };
-  }
-
-  throw new Error(`Unsupported outbox job type: ${outbox.jobType}`);
+  return {
+    jobId: outbox.jobId,
+    requestedAt,
+    failedStage,
+    reason,
+    jobType: "TRADE_APPROVAL",
+    referenceId: failure.referenceId,
+  };
 }
 
 function getFailedStage(

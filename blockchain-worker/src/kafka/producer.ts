@@ -1,5 +1,5 @@
 import { Kafka } from "kafkajs";
-import type { JobFailedMessage } from "./types.js";
+import type { JobFailedMessage, AccountResultMessage, AccountRegistrationRequestMessage } from "./types.js";
 import { env } from "../config/env.js";
 
 const kafka = new Kafka({
@@ -39,6 +39,13 @@ export async function sendBlockchainFailed(message: JobFailedMessage): Promise<v
   await sendMessage(env.kafkaFailureTopic, message.jobId, message);
 }
 
+export async function sendAccountRegistrationResult(message: AccountResultMessage): Promise<void> {
+  await sendMessage(env.kafkaAccountRegistrationResultTopic, message.jobId, message);
+}
+
+export async function sendAccountRegistrationRetry(message: AccountRegistrationRequestMessage): Promise<void> {
+  await sendMessage(env.kafkaReceiptTopic,message.jobId,message);
+}
 /**
  * Kafka topic을 미리 생성한다(partition 수 지정).
  * consumer가 subscribe할 때 topic이 없어 발생하는 UNKNOWN_TOPIC_OR_PARTITION을 방지한다.
