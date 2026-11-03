@@ -321,7 +321,6 @@ model Outbox {
 
   // Kafka publish 성공 시각
   // null이면 아직 publish되지 않음
-  publishedAt DateTime? @map("published_at")
 
   // publish 재시도 횟수
   retryCount Int @default(0) @map("retry_count")
@@ -329,17 +328,14 @@ model Outbox {
   // 마지막 publish 실패 이유
   lastError String? @map("last_error") @db.Text
 
+  publishedAt DateTime? @map("published_at")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-
-  // 미발행 이벤트 조회
-  @@index([publishedAt, createdAt])
 
   // jobId 조회 / idempotency
   @@index([jobId])
 
-  // 작업 종류 + 대상 ID 조회
-  @@index([jobType, referenceId])
+  @@index([status, createdAt])
 
   @@map("outbox")
 }

@@ -29,7 +29,6 @@ export interface AccountRegistrationMessage
   jobType: "ACCOUNT_REGISTRATION";
   addr: string;
   txHash: string;
-  referenceId: number;
 }
 
 // 계좌 등록 확인 결과 (blockchain worker → market-server). 

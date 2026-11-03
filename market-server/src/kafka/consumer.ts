@@ -60,8 +60,7 @@ async function handleProofFailed(
             `[market-server] proof failed ` +
             `registrationId=${message.referenceId}` +
             `jobId=${message.jobId}, ` +
-            `failedStage=${message.failedStage}, ` +
-            `reason=${message.reason}`
+            `failedStage=${message.failedStage}, `
         );
         await novelService.failedRegistration({ registrationId: message.referenceId, reason: message.reason })
     }
@@ -141,7 +140,6 @@ export async function handleAccountResult(
 
     console.log(
         `[market-server] account ${message.result} ` +
-        `jobId=${message.jobId} userId=${outbox.referenceId}` +
-        (message.reason ? ` reason=${message.reason}` : "")
+        `jobId=${message.jobId} userId=${outbox.referenceId}`
     );
 }
