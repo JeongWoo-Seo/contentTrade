@@ -1,6 +1,7 @@
 import { Contract, JsonRpcProvider, type HDNodeWallet } from 'ethers';
 import { SymmetricKeyEncryption } from '../../../utils/crypto/encryption';
 import { pointFromHex, type Account } from '../../../utils/crypto/keys';
+import type { Ena } from '../../../utils/crypto/balance';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 const RPC_URL = import.meta.env.VITE_BLOCKCHAIN_RPC_URL || 'http://localhost:8545';
@@ -22,6 +23,19 @@ const REGIST_USER_ABI = [
   },
 ];
 
+// ContentTrade._ena getter ABI (계좌 암호화 잔액 조회)
+const ENA_ABI = [
+  {
+    type: 'function',
+    name: '_ena',
+    stateMutability: 'view',
+    inputs: [{ name: '', type: 'uint256' }],
+    outputs: [
+      { name: 'r', type: 'uint256' },
+      { name: 'ct', type: 'uint256' },
+    ],
+  },
+];
 export interface ContractDeployment {
   chainId: number;
   contentTrade: string;
@@ -42,6 +56,21 @@ export async function getContractAddress(): Promise<ContractDeployment> {
   return res.json() as Promise<ContractDeployment>;
 }
 
+/**
+ * 사용자의 addr로 스마트 컨트랙트에서 암호화된 계좌 잔액(ENA = {r, ct})을 조회한다.
+ * 계좌가 등록되지 않았으면(r === 0) 오류를 던진다.
+ */
+export async function getEna(addr: string, contractAddress: string): Promise<Ena> {
+  const provider = new JsonRpcProvider(RPC_URL);
+  const contract = new Contract(contractAddress, ENA_ABI, provider);
+  const [r, ct] = (await contract._ena(BigInt(`0x${addr}`))) as [bigint, bigint];
+
+  if (r === 0n) {
+    throw new Error('등록된 계좌가 없습니다.');
+  }
+
+  return { r, ct };
+}
 interface RegisterAccountParams {
   wallet: HDNodeWallet;
   account: Account;
@@ -69,6 +98,7 @@ export async function registerAccount({
 
   const addr = BigInt(`0x${account.addr}`);
   const pkOwn = BigInt(`0x${account.pkOwn}`);
+  const kENA = BigInt(`0x${account.kENA}`);
   const pkEnc = pointFromHex(account.pkEnc);
 
   // 암호화할 초기 잔고 (10진수)
@@ -76,18 +106,15 @@ export async function registerAccount({
 
   // SymmetricKeyEncryption 초기화
   // dataMaxBlockNum은 이 예제의 단일 값 암호화에서는 사용하지 않음
-  const encryption = await SymmetricKeyEncryption.create(account.skEnc, 1);
-  const encrypted = encryption.Enc(balance.toString(16));
-
-  const r = BigInt(`0x${encrypted.r}`);
-  const ct = BigInt(`0x${encrypted.ct}`);
+  const encryption = await SymmetricKeyEncryption.create(kENA, 1);
+  const encrypted = encryption.Enc(balance);
 
   const tx = await contract.registUser(
     addr,
     pkOwn,
     pkEnc,
-    r,
-    ct,
+    encrypted.r,
+    encrypted.ct,
   );
 
   await tx.wait();

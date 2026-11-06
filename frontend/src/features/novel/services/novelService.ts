@@ -1,6 +1,7 @@
-// 소설 API 클라이언트. JWT 인증은 기존 authService.authFetch를 재사용한다
-// (Authorization: Bearer + 401 시 자동 refresh). 별도 인증 시스템을 만들지 않는다.
 import { authFetch } from '../../auth/services/authService';
+import { poseidonHash } from '../../../utils/crypto/poseidon';
+import { PublicKeyEncryption } from '../../../utils/crypto/encryption';
+import { fromHex, fromDecimal, randomFieldElement } from '../../../utils/crypto/util';
 import type {
   CreateNovelRequest,
   NovelListResponse,
@@ -8,6 +9,7 @@ import type {
   TradeInfo,
   MyRegistrationItem,
 } from '../types';
+import { FIELD_PRIME } from '../../../utils/crypto/constants';
 
 interface ApiErrorResponse {
   error?: string;
@@ -60,4 +62,83 @@ export async function getTradeInfo(id: number): Promise<TradeInfo> {
     throw new Error(data?.message || data?.error || '거래 정보를 불러오지 못했습니다.');
   }
   return res.json() as Promise<TradeInfo>;
+}
+
+export async function createPurchaseOrder(
+  input: {
+    pk_enc_cons_x: string;
+    pk_enc_cons_y: string;
+    pk_own_cons: string;
+    pk_enc_svr_x: string;
+    pk_enc_svr_y: string;
+    pk_own_svr: string;
+    pk_own_auth: string;
+    h_k: string;
+    price: bigint;
+  }
+) {
+  const {
+    pk_enc_cons_x,
+    pk_enc_cons_y,
+    pk_own_cons,
+    pk_enc_svr_x,
+    pk_enc_svr_y,
+    pk_own_svr,
+    pk_own_auth,
+    h_k,
+    price,
+  } = input;
+
+  if (price < 1n || price >= FIELD_PRIME) {
+    throw new Error("Invalid price");
+  }
+
+  const fee_svr = 1n;
+  const fee_auth = price - fee_svr;
+
+  const r = randomFieldElement();
+
+  const cm_svr = await poseidonHash(
+    [fromHex(pk_own_svr),
+      r,
+      fee_svr,
+      fromDecimal(h_k),
+      fromHex(pk_enc_cons_x),
+      fromHex(pk_enc_cons_y)
+    ]
+  );
+
+  const cm_auth = await poseidonHash(
+    [fromHex(pk_own_auth),
+      r,
+      fee_auth,
+      fromDecimal(h_k),
+      fromHex(pk_enc_cons_x),
+      fromHex(pk_enc_cons_y)
+    ]
+  );
+
+  // pk_enc_svr로 암호화
+  const pubEnc = await PublicKeyEncryption.create()
+  const encrypted = pubEnc.Enc(
+    [fromHex(pk_enc_svr_x), fromHex(pk_enc_svr_y)],
+    fromHex(pk_own_cons),
+    r,
+    fee_svr,
+    fee_auth,
+    fromDecimal(h_k),
+  );
+
+  return {
+    fee_svr,
+    fee_auth,
+    r,
+
+    cm_svr,
+    cm_auth,
+
+    r_enc: encrypted.r_enc,
+    c0: encrypted.c0,
+    c1: encrypted.c1,
+  };
 }

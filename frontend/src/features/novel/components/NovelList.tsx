@@ -3,6 +3,12 @@ import { Link } from 'react-router-dom';
 import { listNovels, getTradeInfo } from '../services/novelService';
 import { Pagination } from './Pagination';
 import type { NovelListItem } from '../types';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { getContractAddress, getEna } from '../../auth/services/contractService';
+import { computeAccountBalanceUpdate } from '../../../utils/crypto/balance';
+import { createPurchaseOrder } from '../services/novelService';
+import { generateTradeProof } from '../services/proofService';
+import { splitPointHex, hexToDecimal } from '../../../utils/crypto/util';
 import '../styles/NovelList.css';
 
 const PAGE_SIZE = 20;
@@ -19,6 +25,7 @@ export function NovelList() {
   const [purchasingId, setPurchasingId] = useState<number | null>(null); // 구매 중인 소설 id
   const [purchaseMessage, setPurchaseMessage] = useState('');
   const [purchaseError, setPurchaseError] = useState(false);
+  const { getSecrets } = useAuth();
 
   const load = useCallback(async (p: number) => {
     setStatus('loading');
@@ -45,26 +52,93 @@ export function NovelList() {
     setPurchaseMessage('');
 
     try {
-      // [구매 절차 1/8] 거래 정보 조회 (구현됨)
+      // [구매 절차 1/8] 거래 정보 조회
       // 서버가 거래 상태(ACTIVE)를 검증하고, 거래 불가면 오류를 반환한다.
       const tradeInfo = await getTradeInfo(item.id);
 
-      // ---- 이후 단계는 ZK/블록체인 연동이 준비되면 이곳에서 구현한다 ----
+      // [구매 절차 2/8] 로그인 사용자의 addr로 계좌 암호화 잔액(ENA) 조회
+      const secrets = getSecrets();
+      const addr = secrets.addr;
+      const kENA = secrets.kENA;
+      if (!addr || !kENA) {
+        throw new Error('로그인 정보가 없습니다.');
+      }
+      const deployment = await getContractAddress();
+      const ena = await getEna(addr, deployment.contentTrade); // 계좌 미등록 시 오류
 
-      // [구매 절차 2/8] 블록체인에서 구매자 계좌 정보 조회
-      // TODO: 구매자(현재 로그인 사용자)의 on-chain 계좌(commitment)를 조회한다.
-
-      // [구매 절차 3/8] 계좌 정보 복호화
-      // TODO: 계좌 정보를 sk_enc 등으로 복호화해 원문 데이터를 얻는다.
-
-      // [구매 절차 4/8] ENA_ 암호화
-      // TODO: 구매자의 계좌 commitment(ENA_)를 암호화한다.
+      // [구매 절차 3/8] ENA 복호화 후 price 차감
+      // [구매 절차 4/8] 차감된 잔액을 기존 ENA 방식으로 재암호화
+      const balanceUpdate = await computeAccountBalanceUpdate(kENA, ena, BigInt(tradeInfo.price));
+      console.log('[purchase] 계좌 잔액 처리 완료:', balanceUpdate);
 
       // [구매 절차 5/8] Cm 및 주문 정보 암호화
-      // TODO: CoinCommitment(Cm)와 주문 정보를 작가/서버 공개키로 암호화한다.
+      if (!secrets.pkOwn || !secrets.pkEnc) {
+        throw new Error("User encryption keys are missing");
+      }
+
+      //key 값은 원래 hex string이고 h_k는 bigint string
+      const pk_enc_cons = splitPointHex(secrets.pkEnc)
+      const pk_enc_svr = splitPointHex(tradeInfo.serverPkEnc)
+
+      const purchaseOrder = await createPurchaseOrder({
+        pk_enc_cons_x: pk_enc_cons[0],
+        pk_enc_cons_y: pk_enc_cons[1],
+        pk_own_cons: secrets.pkOwn,
+        pk_enc_svr_x: pk_enc_svr[0],
+        pk_enc_svr_y: pk_enc_svr[1],
+        pk_own_svr: tradeInfo.serverPkOwn,
+        pk_own_auth: tradeInfo.authorPkOwn,
+        h_k: tradeInfo.hK,
+        price: BigInt(tradeInfo.price),
+      })
+
+
+      //dec(bigint) string 형태로 input 구성
+      const input = {
+        // =========================================
+        // Public inputs (13개)
+        // =========================================
+        cm_svr: purchaseOrder.cm_svr.toString(),
+        cm_auth: purchaseOrder.cm_auth.toString(),
+
+        c0_x: purchaseOrder.c0[0].toString(),
+        c0_y: purchaseOrder.c0[1].toString(),
+
+        c1: purchaseOrder.c1.toString(), // string[6]
+
+        oldEna_r: balanceUpdate.oldEna.r.toString(),
+        oldEna_ct: balanceUpdate.oldEna.ct.toString(),
+
+        newEna_r: balanceUpdate.newEna.r.toString(),
+        newEna_ct: balanceUpdate.newEna.ct.toString(),
+
+        // =========================================
+        // Private inputs (12개)
+        // =========================================
+        fee_svr: purchaseOrder.fee_svr.toString(),
+        fee_auth: purchaseOrder.fee_auth.toString(),
+
+        r: purchaseOrder.r.toString(),
+        r_enc: purchaseOrder.r_enc.toString(),
+
+        h_k: tradeInfo.hK.toString(),
+
+        //hex string -> dec string
+        pk_enc_cons_x: hexToDecimal(pk_enc_cons[0]),
+        pk_enc_cons_y: hexToDecimal(pk_enc_cons[1]),
+        pk_own_cons: hexToDecimal(secrets.pkOwn),
+
+        pk_own_svr: hexToDecimal(tradeInfo.serverPkOwn),
+        pk_own_auth: hexToDecimal(tradeInfo.authorPkOwn),
+
+        pk_enc_svr_x: hexToDecimal(pk_enc_svr[0]),
+        pk_enc_svr_y: hexToDecimal(pk_enc_svr[1]),
+
+        kENA: hexToDecimal(kENA)
+      }
 
       // [구매 절차 6/8] Proof + public input 생성
-      // TODO: generate_trade / accept_trade 회로의 witness를 생성하고 Groth16 proof를 만든다.
+      const { proof, publicSignals } = await generateTradeProof(input);
 
       // [구매 절차 7/8] 블록체인에서 ZK proof 검증
       // TODO: 블록체인 컨트랙트에 proof를 제출해 검증받고 tx_hash를 얻는다.

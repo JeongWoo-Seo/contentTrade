@@ -6,9 +6,11 @@ import { bytesToHex, bigintToHex64, strToField } from './util';
 // Domain-separation tags, derived deterministically from labels (spec section 4-6):
 //   pk_own = Poseidon(sk_own, DOMAIN_OWN)
 //   sk_enc = Poseidon(sk_own, DOMAIN_ENC)
+//   k_ena  = Poseidon(sk_enc, DOMAIN_ENA)
 //   ena    = Poseidon(pk_own, pk_enc)
 const DOMAIN_OWN = strToField('sk_own->pk_own');
 const DOMAIN_ENC = strToField('sk_own->sk_enc');
+const DOMAIN_ENA = strToField('sk_enc->k_ena');
 
 function toField(hex: string): bigint {
   return BigInt('0x' + hex) % FIELD_PRIME;
@@ -17,6 +19,7 @@ function toField(hex: string): bigint {
 export interface Account {
   skOwn: string; // secret — never leaves the browser unencrypted
   skEnc: string; // secret — derived from sk_own
+  kENA: string; // secret — ENA 복호화 키 (sk_enc에서 파생)
   pkOwn: string; // public
   pkEnc: string; // public (x||y)
   addr: string; // public commitment
@@ -50,6 +53,7 @@ export async function deriveAccount(skOwn: string): Promise<Account> {
 
   const pkOwn = await poseidonHash([skOwnField, DOMAIN_OWN]); // public identifier
   const skEncField = await poseidonHash([skOwnField, DOMAIN_ENC]); // encryption secret
+  const kENA = await poseidonHash([skEncField, DOMAIN_ENA]); // ENA 복호화 키
   const skEncScalar = skEncField % SUBGROUP_ORDER; // reduce to valid ECC scalar
   const pkEncPoint = await scalarMulBase(skEncScalar); // pk_enc = sk_enc * G
   const addr = await poseidonHash([pkOwn, pkEncPoint[0], pkEncPoint[1]]); // account commitment
@@ -57,6 +61,7 @@ export async function deriveAccount(skOwn: string): Promise<Account> {
   return {
     skOwn,
     skEnc: bigintToHex64(skEncField),
+    kENA: bigintToHex64(kENA),
     pkOwn: bigintToHex64(pkOwn),
     pkEnc: pointToHex(pkEncPoint),
     addr: bigintToHex64(addr),

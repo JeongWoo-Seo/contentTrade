@@ -130,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       id: username,
       skOwn,
       skEnc: account.skEnc,
+      kENA: account.kENA,
       aesKey,
       pkOwn: account.pkOwn,
       pkEnc: account.pkEnc,
