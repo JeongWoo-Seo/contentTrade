@@ -64,6 +64,18 @@ export async function getTradeInfo(id: number): Promise<TradeInfo> {
   return res.json() as Promise<TradeInfo>;
 }
 
+// 구매 승인 요청: contentId + txHash를 서버에 전달한다.
+// 서버가 contentId의 판매 상태(ACTIVE)를 검증하고, 판매 중이 아니면 오류를 반환한다.
+export async function requestPurchase(contentId: number, txHash: string): Promise<{ contentId: number; txHash: string }> {
+  const res = await authFetch(`/api/novels/${contentId}/purchase`, { method: 'POST', body: { txHash } });
+
+  if (!res.ok) {
+    const data = await parseError(res);
+    throw new Error(data?.message || data?.error || '구매 승인 요청에 실패했습니다.');
+  }
+  return res.json() as Promise<{ contentId: number; txHash: string }>;
+}
+
 export async function createPurchaseOrder(
   input: {
     pk_enc_cons_x: string;

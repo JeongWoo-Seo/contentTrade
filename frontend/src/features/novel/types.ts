@@ -58,4 +58,5 @@ export interface TradeInfo {
   hK: string;
   serverPkEnc: string;
   serverPkOwn: string;
+  alreadyPurchased: boolean;
 }

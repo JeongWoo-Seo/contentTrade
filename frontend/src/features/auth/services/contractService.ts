@@ -1,4 +1,4 @@
-import { Contract, JsonRpcProvider, type HDNodeWallet } from 'ethers';
+import { Contract, JsonRpcProvider, Wallet, type HDNodeWallet } from 'ethers';
 import { SymmetricKeyEncryption } from '../../../utils/crypto/encryption';
 import { pointFromHex, type Account } from '../../../utils/crypto/keys';
 import type { Ena } from '../../../utils/crypto/balance';
@@ -23,19 +23,6 @@ const REGIST_USER_ABI = [
   },
 ];
 
-// ContentTrade._ena getter ABI (계좌 암호화 잔액 조회)
-const ENA_ABI = [
-  {
-    type: 'function',
-    name: '_ena',
-    stateMutability: 'view',
-    inputs: [{ name: '', type: 'uint256' }],
-    outputs: [
-      { name: 'r', type: 'uint256' },
-      { name: 'ct', type: 'uint256' },
-    ],
-  },
-];
 export interface ContractDeployment {
   chainId: number;
   contentTrade: string;
@@ -56,21 +43,6 @@ export async function getContractAddress(): Promise<ContractDeployment> {
   return res.json() as Promise<ContractDeployment>;
 }
 
-/**
- * 사용자의 addr로 스마트 컨트랙트에서 암호화된 계좌 잔액(ENA = {r, ct})을 조회한다.
- * 계좌가 등록되지 않았으면(r === 0) 오류를 던진다.
- */
-export async function getEna(addr: string, contractAddress: string): Promise<Ena> {
-  const provider = new JsonRpcProvider(RPC_URL);
-  const contract = new Contract(contractAddress, ENA_ABI, provider);
-  const [r, ct] = (await contract._ena(BigInt(`0x${addr}`))) as [bigint, bigint];
-
-  if (r === 0n) {
-    throw new Error('등록된 계좌가 없습니다.');
-  }
-
-  return { r, ct };
-}
 interface RegisterAccountParams {
   wallet: HDNodeWallet;
   account: Account;

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listNovels, getTradeInfo } from '../services/novelService';
+import { listNovels, getTradeInfo, requestPurchase } from '../services/novelService';
 import { Pagination } from './Pagination';
 import type { NovelListItem } from '../types';
 import { useAuth } from '../../auth/hooks/useAuth';
-import { getContractAddress, getEna } from '../../auth/services/contractService';
+import { getContractAddress } from '../../auth/services/contractService';
+import { submitPurchaseContent, getEna } from '../services/contractService';
 import { computeAccountBalanceUpdate } from '../../../utils/crypto/balance';
 import { createPurchaseOrder } from '../services/novelService';
 import { generateTradeProof } from '../services/proofService';
@@ -25,7 +26,7 @@ export function NovelList() {
   const [purchasingId, setPurchasingId] = useState<number | null>(null); // 구매 중인 소설 id
   const [purchaseMessage, setPurchaseMessage] = useState('');
   const [purchaseError, setPurchaseError] = useState(false);
-  const { getSecrets } = useAuth();
+  const { getSecrets, getWallet } = useAuth();
 
   const load = useCallback(async (p: number) => {
     setStatus('loading');
@@ -55,6 +56,12 @@ export function NovelList() {
       // [구매 절차 1/8] 거래 정보 조회
       // 서버가 거래 상태(ACTIVE)를 검증하고, 거래 불가면 오류를 반환한다.
       const tradeInfo = await getTradeInfo(item.id);
+
+      // 이미 구매를 요청했거나 완료한 경우: 재구매하지 않고 안내한다.
+      if (tradeInfo.alreadyPurchased) {
+        setPurchaseMessage(`"${item.title}"은(는) 이미 구매한 소설입니다.`);
+        return;
+      }
 
       // [구매 절차 2/8] 로그인 사용자의 addr로 계좌 암호화 잔액(ENA) 조회
       const secrets = getSecrets();
@@ -141,13 +148,25 @@ export function NovelList() {
       const { proof, publicSignals } = await generateTradeProof(input);
 
       // [구매 절차 7/8] 블록체인에서 ZK proof 검증
-      // TODO: 블록체인 컨트랙트에 proof를 제출해 검증받고 tx_hash를 얻는다.
+      const wallet = getWallet();
+      if (!wallet) {
+        throw new Error('지갑 정보가 없습니다.');
+      }
+      const txHash = await submitPurchaseContent({
+        privateKey: wallet.privateKey,
+        contractAddress: deployment.contentTrade,
+        proof,
+        publicSignals,
+      });
+      console.log('[purchase] purchaseContent tx:', txHash);
 
-      // [구매 절차 8/8] h_ct와 tx_hash를 서버에 전달
-      // TODO: 검증된 h_ct와 tx_hash를 구매 완료 API로 전달해 구매를 확정한다.
+      // [구매 절차 8/8] 거래 승인 요청을 tx_hash와 함께 서버에 전달
+      // contentId와 txHash를 전달하면 서버가 판매 중(ACTIVE) 여부를 검증하고,
+      // 판매 중이 아니면 거래 불가 오류를 반환한다.
+      await requestPurchase(item.id, txHash);
 
-      console.log('[purchase] 거래 정보 조회 성공:', tradeInfo);
-      setPurchaseMessage(`"${item.title}" 구매 절차를 시작합니다.`);
+      console.log('[purchase] 구매 완료:', { contentId: item.id, txHash });
+      setPurchaseMessage(`"${item.title}" 구매가 완료되었습니다.`);
     } catch (err) {
       // 거래 불가 / 존재하지 않음 / 네트워크·API 오류 → 절차 중단 + 안내.
       setPurchaseError(true);
