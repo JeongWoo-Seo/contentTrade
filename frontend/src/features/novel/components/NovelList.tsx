@@ -55,6 +55,7 @@ export function NovelList() {
     try {
       // [구매 절차 1/8] 거래 정보 조회
       // 서버가 거래 상태(ACTIVE)를 검증하고, 거래 불가면 오류를 반환한다.
+      console.log('[purchase] 구매 요청 진행');
       const tradeInfo = await getTradeInfo(item.id);
 
       // 이미 구매를 요청했거나 완료한 경우: 재구매하지 않고 안내한다.
@@ -99,7 +100,6 @@ export function NovelList() {
         price: BigInt(tradeInfo.price),
       })
 
-
       //dec(bigint) string 형태로 input 구성
       const input = {
         // =========================================
@@ -111,7 +111,7 @@ export function NovelList() {
         c0_x: purchaseOrder.c0[0].toString(),
         c0_y: purchaseOrder.c0[1].toString(),
 
-        c1: purchaseOrder.c1.toString(), // string[6]
+        c1: purchaseOrder.c1.map((v) => v.toString()), // string[6]
 
         oldEna_r: balanceUpdate.oldEna.r.toString(),
         oldEna_ct: balanceUpdate.oldEna.ct.toString(),
@@ -141,7 +141,7 @@ export function NovelList() {
         pk_enc_svr_x: hexToDecimal(pk_enc_svr[0]),
         pk_enc_svr_y: hexToDecimal(pk_enc_svr[1]),
 
-        kENA: hexToDecimal(kENA)
+        k_enc: hexToDecimal(kENA)
       }
 
       // [구매 절차 6/8] Proof + public input 생성
@@ -152,21 +152,19 @@ export function NovelList() {
       if (!wallet) {
         throw new Error('지갑 정보가 없습니다.');
       }
+
       const txHash = await submitPurchaseContent({
         privateKey: wallet.privateKey,
         contractAddress: deployment.contentTrade,
         proof,
         publicSignals,
       });
-      console.log('[purchase] purchaseContent tx:', txHash);
 
       // [구매 절차 8/8] 거래 승인 요청을 tx_hash와 함께 서버에 전달
-      // contentId와 txHash를 전달하면 서버가 판매 중(ACTIVE) 여부를 검증하고,
-      // 판매 중이 아니면 거래 불가 오류를 반환한다.
       await requestPurchase(item.id, txHash);
 
-      console.log('[purchase] 구매 완료:', { contentId: item.id, txHash });
-      setPurchaseMessage(`"${item.title}" 구매가 완료되었습니다.`);
+      console.log('[purchase] 구매 요청 완료:', { contentId: item.id, txHash });
+      setPurchaseMessage(`"${item.title}" 구매 요청이 완료되었습니다.`);
     } catch (err) {
       // 거래 불가 / 존재하지 않음 / 네트워크·API 오류 → 절차 중단 + 안내.
       setPurchaseError(true);

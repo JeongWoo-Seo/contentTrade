@@ -11,7 +11,7 @@ const RPC_URL = import.meta.env.VITE_BLOCKCHAIN_RPC_URL || 'http://localhost:854
 const ENA_ABI = [
   {
     type: 'function',
-    name: '_ena',
+    name: 'ena',
     stateMutability: 'view',
     inputs: [{ name: '', type: 'uint256' }],
     outputs: [
@@ -47,7 +47,7 @@ export async function getContractAddress(): Promise<ContractDeployment> {
 export async function getEna(addr: string, contractAddress: string): Promise<Ena> {
   const provider = new JsonRpcProvider(RPC_URL);
   const contract = new Contract(contractAddress, ENA_ABI, provider);
-  const [r, ct] = (await contract._ena(BigInt(`0x${addr}`))) as [bigint, bigint];
+  const [r, ct] = (await contract.ena(BigInt(`0x${addr}`))) as [bigint, bigint];
 
   if (r === 0n) {
     throw new Error('등록된 계좌가 없습니다.');
