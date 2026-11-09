@@ -155,6 +155,7 @@ export async function checkTradeApprovalReceipt(
 /**
  * User Registration(회원가입) 트랜잭션 receipt 확인
  */
+
 export async function checkAccountRegistrationReceipt(
   txHash: string,
   addr: string,
@@ -163,10 +164,9 @@ export async function checkAccountRegistrationReceipt(
   const receipt = await provider.getTransactionReceipt(txHash);
 
   if (!receipt) {
-    // 아직 블록에 포함되지 않음
     return {
       status: "PENDING",
-      txHash: txHash,
+      txHash,
       reason: null,
     };
   }
@@ -176,7 +176,7 @@ export async function checkAccountRegistrationReceipt(
     return {
       status: "FAILED",
       reason: "Account registration transaction reverted",
-      txHash: txHash,
+      txHash,
     };
   }
 
@@ -187,7 +187,7 @@ export async function checkAccountRegistrationReceipt(
     throw new Error(`Transaction not found: ${txHash}`);
   }
 
-  // 5. registUser 호출인지 확인하고 addr 검증
+  // 4. registUser 호출인지 확인
   const parsed = contentTradeContract.interface.parseTransaction({
     data: tx.data,
     value: tx.value,
@@ -197,10 +197,11 @@ export async function checkAccountRegistrationReceipt(
     return {
       status: "FAILED",
       reason: "Transaction did not call registUser",
-      txHash: txHash,
+      txHash,
     };
   }
 
+  // 5. 등록 요청 addr 검증
   const expectedAddr = BigInt(`0x${addr}`);
   const registeredAddr = BigInt(parsed.args[0].toString());
 
@@ -213,25 +214,26 @@ export async function checkAccountRegistrationReceipt(
   }
 
   // 6. 컨트랙트의 실제 등록 정보 확인
-  const userInfo = await contentTradeContract
-    .getFunction("_userInfoMap")
-    .staticCall(expectedAddr);
+  const userInfo = await contentTradeContract.userInfoMap(receipt.from);
 
-  if (userInfo.own === ZeroAddress) {
+  const onChainAddr = BigInt(userInfo.addr.toString());
+
+  if (onChainAddr !== expectedAddr) {
     return {
       status: "FAILED",
       reason: "User is not registered on-chain",
-      txHash: txHash,
+      txHash,
     };
   }
 
-  // 모든 검증 통과
+  // 7. 모든 검증 통과
   return {
     status: "CONFIRMED",
-    txHash: txHash,
+    txHash,
     reason: null,
   };
 }
+
 /**
  * Ethereum transaction receipt 확인
  *

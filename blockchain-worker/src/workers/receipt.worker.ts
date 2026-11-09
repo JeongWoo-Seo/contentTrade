@@ -19,7 +19,7 @@ export class ReceiptWorker {
       shouldRun: () => this.running,
     });
 
-    console.log("[blockchain-worker] receipt worker stopped");
+    console.log("[receipt-worker] receipt worker stopped");
   }
 
   stop(): void {
