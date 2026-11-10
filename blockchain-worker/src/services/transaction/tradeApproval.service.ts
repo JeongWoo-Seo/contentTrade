@@ -52,12 +52,24 @@ export async function processTradeApproval(
         return;
     }
 
+    // proof가 아직 생성되지 않은 stub은 처리하지 않는다.
+    if (!job.proof || !job.publicSignals) {
+        console.warn(
+            `[blockchain-worker] trade approval job has no proof yet: ` +
+            `jobId=${job.jobId}`,
+        );
+        return;
+    }
     try {
         // ============================================================
         // 2. TX Simulation
         // ============================================================
 
-        const simulation = await simulateTradeApprovalWithRetry(job);
+        const simulation = await simulateTradeApprovalWithRetry({
+            jobId: job.jobId,
+            proof: job.proof,
+            publicSignals: job.publicSignals,
+        });
         if (!simulation.success) {
             await failTradeApprovalJobWithRetry(
                 job,
@@ -71,7 +83,11 @@ export async function processTradeApproval(
         // 3. TX 생성
         // ============================================================
 
-        const transaction = await buildTradeApprovalTransactionWithRetry(job);
+        const transaction = await buildTradeApprovalTransactionWithRetry({
+            jobId: job.jobId,
+            proof: job.proof,
+            publicSignals: job.publicSignals,
+        });
 
         // ============================================================
         // 4. TX 전송

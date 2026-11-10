@@ -106,10 +106,12 @@ model TradeApprovalTransaction {
   jobId String @unique @map("job_id") @db.VarChar(100)
   // 구매 ID
   purchaseId Int @map("purchase_id")
-  // ZK Proof
-  proof String @db.Text
-  // ZK circuit public inputs
-  publicSignals String @map("public_signals") @db.Text
+  // 구매 검증에서 추출한 tradeData (승인 작업에 필요한 정보, JSON)
+  tradeData String @map("trade_data") @db.Text
+  // ZK Proof (proof 생성 전에는 null)
+  proof String? @db.Text
+  // ZK circuit public inputs (proof 생성 전에는 null)
+  publicSignals String? @map("public_signals") @db.Text
   txHash String? @unique @map("tx_hash") @db.VarChar(255)
   nonce Int?
 
@@ -140,6 +142,13 @@ enum AccountRegistrationStatus {
   FAILED
 }
 
+enum PurchaseVerificationStatus {
+  PENDING
+  CHECKING
+  CONFIRMED
+  FAILED
+}
+
 model AccountRegistration {
   id Int @id @default(autoincrement())
 
@@ -159,6 +168,32 @@ model AccountRegistration {
 
   @@index([jobId])
   @@map("account_registration")
+}
+
+// ==========================================================
+// 구매 요청 블록체인 확인 (receipt 확인 상태 보관)
+// ==========================================================
+
+model PurchaseVerification {
+  id Int @id @default(autoincrement())
+
+  // 구매 요청 확인 작업 ID
+  jobId String @unique @map("job_id") @db.VarChar(100)
+  // 구매 요청(purchaseContent) 트랜잭션 해시
+  txHash String @map("tx_hash") @db.VarChar(255)
+  // BuyHistory.id (market-server)
+  referenceId Int @map("reference_id")
+
+  // Receipt 확인 상태
+  status PurchaseVerificationStatus @default(PENDING)
+
+  confirmedAt DateTime? @map("confirmed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([jobId])
+  @@map("purchase_verification")
 }
 
 // ==========================================================
@@ -204,6 +239,7 @@ enum OutboxJobType {
   CONTENT_REGISTRATION
   TRADE_APPROVAL
   ACCOUNT_REGISTRATION
+  PURCHASE_VERIFICATION
 }
 
 enum OutboxEventType {
@@ -213,6 +249,7 @@ enum OutboxEventType {
   TRANSACTION_FAILED
   PROOF_FAILED
   ACCOUNT_REGISTRATION_RESULT
+  PURCHASE_VERIFICATION_RESULT
 }
 
 model TransactionOutbox {

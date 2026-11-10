@@ -45,22 +45,6 @@ export const tradeApprovalTransactionRepository = {
     });
   },
 
-  async create(data: {
-    jobId: string;
-    purchaseId: number;
-    proof: string;
-    publicSignals: string[];
-  }) {
-    return prisma.tradeApprovalTransaction.create({
-      data: {
-        jobId: data.jobId,
-        purchaseId: data.purchaseId,
-        proof: data.proof,
-        publicSignals: JSON.stringify(data.publicSignals),
-        status: "PENDING",
-      },
-    });
-  },
 
   async markSubmitted(
     id: number,

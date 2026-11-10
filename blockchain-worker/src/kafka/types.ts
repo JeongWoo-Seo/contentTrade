@@ -41,10 +41,26 @@ export interface AccountRegistrationRequestMessage {
   referenceId: number;
 }
 
+export interface PurchaseRequestMessage {
+  jobId: string;
+  jobType: "PURCHASE_VERIFICATION";
+  txHash: string;
+  referenceId: number;
+}
+
+export interface PurchaseResultMessage {
+  jobId: string;
+  jobType: "PURCHASE_VERIFICATION";
+  eventType: string;
+  result: "APPROVING" | "REJECTED";
+  reason?: string;
+  referenceId: number;
+}
+
 export interface proofWorkMessage {
   jobId: string;
   jobType: "CONTENT_REGISTRATION" | "TRADE_APPROVAL";
   eventType: OutboxEventType;
 }
 
-export type ReceiptMessage = proofWorkMessage | AccountRegistrationRequestMessage;
+export type ReceiptMessage = proofWorkMessage | AccountRegistrationRequestMessage | PurchaseRequestMessage;

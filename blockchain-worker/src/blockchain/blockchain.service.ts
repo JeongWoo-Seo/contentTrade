@@ -1,6 +1,6 @@
 import { ethers, ZeroAddress } from "ethers";
 import { provider, wallet, contentTradeContract } from "./blockchian.js";
-import { TransactionInput, SignedTransaction, Eip1559Fee, ReceiptCheckResult, Groth16Proof } from "./type.js";
+import { TransactionInput, SignedTransaction, Eip1559Fee, ReceiptCheckResult, Groth16Proof, PurchaseReceiptCheckResult } from "./type.js";
 
 export async function getPendingNonce(): Promise<number> {
   return provider.getTransactionCount(
@@ -234,6 +234,92 @@ export async function checkAccountRegistrationReceipt(
   };
 }
 
+/**
+ * Purchase(구매 요청) 트랜잭션 receipt 확인.
+ * purchaseContent 호출 + EVM 실행 성공 여부를 검증한다.
+ */
+export async function checkPurchaseReceipt(
+  txHash: string,
+): Promise<PurchaseReceiptCheckResult> {
+  // 1. 트랜잭션 Receipt 확인
+  const receipt = await provider.getTransactionReceipt(txHash);
+
+  if (!receipt) {
+    return {
+      status: "PENDING",
+      txHash,
+      reason: null,
+    };
+  }
+
+  // 2. EVM 실행 실패 확인
+  if (receipt.status !== 1) {
+    return {
+      status: "FAILED",
+      reason: "Purchase transaction reverted",
+      txHash,
+    };
+  }
+
+  // 3. 트랜잭션 원본 조회
+  const tx = await provider.getTransaction(txHash);
+
+  if (!tx) {
+    throw new Error(`Transaction not found: ${txHash}`);
+  }
+
+  // 4. purchaseContent 호출인지 확인
+  const parsed = contentTradeContract.interface.parseTransaction({
+    data: tx.data,
+    value: tx.value,
+  });
+
+  if (!parsed || parsed.name !== "purchaseContent") {
+    return {
+      status: "FAILED",
+      reason: "Transaction did not call purchaseContent",
+      txHash,
+    };
+  }
+
+  // 5. publicSignals 추출
+  const publicSignals = parsed.args[3];
+
+  if (!publicSignals || publicSignals.length !== 13) {
+    return {
+      status: "FAILED",
+      reason: "Invalid purchase publicSignals",
+      txHash,
+    };
+  }
+
+  // 6. 필요한 Trade 정보 추출
+  const tradeData = {
+    cmSvr: publicSignals[0].toString(),
+    cmAuth: publicSignals[1].toString(),
+
+    c0: [
+      publicSignals[6].toString(),
+      publicSignals[7].toString(),
+    ] as [string, string],
+
+    c1: [
+      publicSignals[8].toString(),
+      publicSignals[9].toString(),
+      publicSignals[10].toString(),
+      publicSignals[11].toString(),
+      publicSignals[12].toString(),
+    ] as [string, string, string, string, string],
+  };
+
+  // 7. 모든 검증 통과
+  return {
+    status: "CONFIRMED",
+    txHash,
+    reason: null,
+    tradeData,
+  };
+}
 /**
  * Ethereum transaction receipt 확인
  *

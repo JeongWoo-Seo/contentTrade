@@ -63,13 +63,28 @@ export const outboxRepository = {
   },
 
   /**
-   * Receipt 재확인을 위해 해당 job의 RECEIPT_CHECK_REQUESTED Outbox를
-   * PENDING으로 되돌린다(중복 생성 없이 업데이트). 이미 PENDING이어도 no-op.
+   * Receipt 재확인용 Outbox를 PENDING으로 되돌린다.
+   * 해당 job의 RECEIPT_CHECK_REQUESTED Outbox가 없으면 새로 생성한다(create-or-reset).
    */
-  async markPendingForReceiptRetry(jobId: string) {
-    return prisma.transactionOutbox.updateMany({
+  async markPendingForReceiptRetry(jobId: string, jobType: OutboxJobType) {
+    const existing = await prisma.transactionOutbox.findFirst({
       where: { jobId, eventType: "RECEIPT_CHECK_REQUESTED" },
-      data: { status: "PENDING", publishedAt: null },
+    });
+
+    if (existing) {
+      return prisma.transactionOutbox.update({
+        where: { id: existing.id },
+        data: { status: "PENDING", publishedAt: null },
+      });
+    }
+
+    return prisma.transactionOutbox.create({
+      data: {
+        jobId,
+        jobType,
+        eventType: "RECEIPT_CHECK_REQUESTED",
+        status: "PENDING",
+      },
     });
   },
 

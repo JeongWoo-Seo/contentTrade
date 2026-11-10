@@ -1,5 +1,5 @@
 import { Kafka } from "kafkajs";
-import type { JobFailedMessage, AccountResultMessage, AccountRegistrationRequestMessage } from "./types.js";
+import type { JobFailedMessage, AccountResultMessage, AccountRegistrationRequestMessage, PurchaseRequestMessage, PurchaseResultMessage } from "./types.js";
 import { env } from "../config/env.js";
 
 const kafka = new Kafka({
@@ -40,11 +40,19 @@ export async function sendBlockchainFailed(message: JobFailedMessage): Promise<v
 }
 
 export async function sendAccountRegistrationResult(message: AccountResultMessage): Promise<void> {
-  await sendMessage(env.kafkaAccountRegistrationResultTopic, message.jobId, message);
+  await sendMessage(env.kafkaTxReceiptResultTopic, message.jobId, message);
 }
 
 export async function sendAccountRegistrationRetry(message: AccountRegistrationRequestMessage): Promise<void> {
   await sendMessage(env.kafkaReceiptTopic,message.jobId,message);
+}
+
+export async function sendPurchaseVerificationRetry(message: PurchaseRequestMessage): Promise<void> {
+  await sendMessage(env.kafkaReceiptTopic, message.jobId, message);
+}
+
+export async function sendPurchaseVerificationResult(message: PurchaseResultMessage): Promise<void> {
+  await sendMessage(env.kafkaTxReceiptResultTopic, message.jobId, message);
 }
 /**
  * Kafka topic을 미리 생성한다(partition 수 지정).

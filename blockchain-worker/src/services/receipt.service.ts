@@ -1,15 +1,17 @@
-import { checkContentRegistrationReceipt, checkTradeApprovalReceipt, checkAccountRegistrationReceipt } from "../blockchain/blockchain.service.js";
+import { checkContentRegistrationReceipt, checkTradeApprovalReceipt, checkAccountRegistrationReceipt, checkPurchaseReceipt } from "../blockchain/blockchain.service.js";
 import { contentRegistrationTransactionRepository } from "../repositories/content-registration.repository.js";
 import { tradeApprovalTransactionRepository } from "../repositories/trade-approval.repository.js";
 import { accountRegistrationRepository } from "../repositories/account-registration.repository.js";
+import { purchaseVerificationRepository } from "../repositories/purchase-verification.repository.js";
 import { transactionRepository } from "../repositories/transation.repository.js";
 import { withDbRetry } from "../utils/retry.js";
 import type {
   ContentRegistrationTransaction,
   TradeApprovalTransaction,
+  OutboxJobType,
 } from "@prisma/client";
-import type { ReceiptCheckResult } from "../blockchain/type.js";
-import { type ReceiptMessage, AccountRegistrationRequestMessage } from "../kafka/types.js";
+import type { ReceiptCheckResult, PurchaseReceiptCheckResult } from "../blockchain/type.js";
+import { type ReceiptMessage, AccountRegistrationRequestMessage, PurchaseRequestMessage } from "../kafka/types.js";
 import { outboxRepository } from "../repositories/outbox.repository.js";
 
 export async function processReceiptCheck(
@@ -26,6 +28,10 @@ export async function processReceiptCheck(
 
     case "ACCOUNT_REGISTRATION":
       await processAccountRegistrationReceipt(message);
+      break;
+
+    case "PURCHASE_VERIFICATION":
+      await processPurchaseVerificationReceipt(message);
       break;
 
     default:
@@ -61,7 +67,7 @@ async function processAccountRegistrationReceipt(
   if (result.status === "CONFIRMED") {
     await confirmAccountRegistrationWithRetry(job.jobId);
   } else if (result.status === "PENDING") {
-    await markReceiptCheckPendingWithRetry(job.jobId);
+    await markReceiptCheckPendingWithRetry(job.jobId, "ACCOUNT_REGISTRATION");
   }// 블록체인 실행 실패
   else {
     await failAccountRegistrationWithRetry(job.jobId, result);
@@ -101,7 +107,7 @@ async function processContentRegistrationReceipt(
 
   // 아직 블록에 포함되지 않음 → Outbox를 PENDING으로 되돌려 재발행
   if (result.status === "PENDING") {
-    await markReceiptCheckPendingWithRetry(job.jobId);
+    await markReceiptCheckPendingWithRetry(job.jobId, "CONTENT_REGISTRATION");
   }
   // 블록체인 실행 실패
   else if (result.status === "FAILED") {
@@ -150,7 +156,7 @@ async function processTradeApprovalReceipt(jobId: string): Promise<void> {
   const result = await checkTradeApprovalReceipt(job.txHash!);
 
   if (result.status === "PENDING") {
-    await markReceiptCheckPendingWithRetry(job.jobId);
+    await markReceiptCheckPendingWithRetry(job.jobId, "TRADE_APPROVAL");
     return;
   } else if (result.status === "FAILED") {
     await failTradeApprovalWithRetry(job, result);
@@ -185,9 +191,59 @@ async function confirmTradeApprovalWithRetry(
   );
 }
 
-async function markReceiptCheckPendingWithRetry(jobId: string): Promise<void> {
+async function markReceiptCheckPendingWithRetry(jobId: string, jobType: OutboxJobType): Promise<void> {
   await withDbRetry(
-    () => outboxRepository.markPendingForReceiptRetry(jobId),
+    () => outboxRepository.markPendingForReceiptRetry(jobId, jobType),
     { operationName: `markReceiptCheckPendingRetry:${jobId}` },
+  );
+}
+
+///////////////////////////////////////////
+//        Purchase
+///////////////////////////////////////////
+
+async function processPurchaseVerificationReceipt(
+  message: PurchaseRequestMessage
+): Promise<void> {
+  const job = await purchaseVerificationRepository.claimOrCreatePendingReceipt({
+    jobId: message.jobId,
+    txHash: message.txHash,
+    referenceId: message.referenceId,
+  });
+  if (!job) {
+    throw new Error(`Purchase verification claim fail: jobId=${message.jobId}`);
+  }
+  if (job.status !== "PENDING") {
+    return;
+  }
+
+  const result = await checkPurchaseReceipt(job.txHash);
+
+  if (result.status === "CONFIRMED") {
+    await confirmPurchaseVerificationWithRetry(job.jobId, result);
+  } else if (result.status === "PENDING") {
+    await markReceiptCheckPendingWithRetry(job.jobId, "PURCHASE_VERIFICATION");
+  } else {
+    await failPurchaseVerificationWithRetry(job.jobId, result.reason);
+  }
+}
+
+async function confirmPurchaseVerificationWithRetry(
+  jobId: string,
+  result: Extract<PurchaseReceiptCheckResult, { status: "CONFIRMED" }>
+): Promise<void> {
+  await withDbRetry(
+    () => purchaseVerificationRepository.confirm(jobId, result),
+    { operationName: `confirmPurchaseVerification:${jobId}` },
+  );
+}
+
+async function failPurchaseVerificationWithRetry(
+  jobId: string,
+  reason: string,
+): Promise<void> {
+  await withDbRetry(
+    () => purchaseVerificationRepository.fail(jobId, reason),
+    { operationName: `failPurchaseVerification:${jobId}` },
   );
 }

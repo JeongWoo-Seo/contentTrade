@@ -7,7 +7,7 @@ export const TOPICS = {
   receipt: env.kafkaReceiptTopic,
   result: env.kafkaResultTopic,
   fail: env.kafkaFailureTopic,
-  accountResult: env.kafkaAccountRegistrationResultTopic,
+  accountResult: env.kafkaTxReceiptResultTopic,
 } as const;
 
 // 단계별 Consumer Group
@@ -34,6 +34,7 @@ export function topicForEventType(eventType: OutboxEventType): string {
     case "PROOF_FAILED":
       return TOPICS.fail;
     case "ACCOUNT_REGISTRATION_RESULT":
+    case "PURCHASE_VERIFICATION_RESULT":
       return TOPICS.accountResult;
     default:
       throw new Error(`[blockchain-worker] unknown event type: ${eventType}`);

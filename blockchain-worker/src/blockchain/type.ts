@@ -26,20 +26,43 @@ export type Eip1559Fee = {
 
 export type ReceiptCheckResult =
   | {
-      status: "PENDING";
-      txHash: string;
-      reason: null;
-    }
+    status: "PENDING";
+    txHash: string;
+    reason: null;
+  }
   | {
-      status: "CONFIRMED";
-      txHash: string;
-      reason: null;
-    }
+    status: "CONFIRMED";
+    txHash: string;
+    reason: null;
+  }
   | {
-      status: "FAILED";
-      txHash: string;
-      reason: string;
+    status: "FAILED";
+    txHash: string;
+    reason: string;
+  };
+
+export type PurchaseReceiptCheckResult =
+  | {
+    status: "PENDING";
+    txHash: string;
+    reason: null;
+  }
+  | {
+    status: "CONFIRMED";
+    txHash: string;
+    reason: null;
+    tradeData: {
+      cmSvr: string;
+      cmAuth: string;
+      c0: [string, string];
+      c1: [string, string, string, string, string];
     };
+  }
+  | {
+    status: "FAILED";
+    txHash: string;
+    reason: string;
+  };
 
 export type Groth16Proof = {
   pi_a: [string, string, string];

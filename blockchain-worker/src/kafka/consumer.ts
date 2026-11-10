@@ -1,13 +1,13 @@
 import { Kafka, type EachMessagePayload } from "kafkajs";
 import { env } from "../config/env.js";
-import type { ReceiptMessage } from "./types.js";
+import type { proofWorkMessage } from "./types.js";
 
 const kafka = new Kafka({
   clientId: `${env.kafkaClientId}-consumer`,
   brokers: env.kafkaBrokers,
 });
 
-export interface ConsumerOptions<T = ReceiptMessage> {
+export interface ConsumerOptions<T = proofWorkMessage> {
   topic: string;
   groupId: string;
   process: (message: T) => Promise<void>;
@@ -23,7 +23,7 @@ export interface ConsumerOptions<T = ReceiptMessage> {
  * - 같은 groupId의 consumer들이 partition을 분담한다.
  * await options.process(workMessage); 내에서는 무조건 같은 메시지가 입력되어도 중복 문제가 없도록 처리가 필요.
  */
-export async function startConsumer<T = ReceiptMessage>(options: ConsumerOptions<T>): Promise<void> {
+export async function startConsumer<T = proofWorkMessage>(options: ConsumerOptions<T>): Promise<void> {
   const consumer = kafka.consumer({ groupId: options.groupId, allowAutoTopicCreation: false });
 
   await consumer.connect();

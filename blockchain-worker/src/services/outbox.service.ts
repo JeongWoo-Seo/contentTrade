@@ -1,12 +1,13 @@
 import { outboxRepository } from "../repositories/outbox.repository.js";
-import { sendMessage, sendBlockchainFailed, sendAccountRegistrationResult, sendAccountRegistrationRetry } from "../kafka/producer.js";
+import { sendMessage, sendBlockchainFailed, sendAccountRegistrationResult, sendAccountRegistrationRetry, sendPurchaseVerificationRetry, sendPurchaseVerificationResult } from "../kafka/producer.js";
 import { topicForEventType } from "../kafka/topics.js";
 import type { TransactionOutbox } from "@prisma/client";
-import type { JobFailedMessage, AccountResultMessage, AccountRegistrationRequestMessage } from "../kafka/types.js";
+import type { JobFailedMessage, AccountResultMessage, AccountRegistrationRequestMessage, PurchaseRequestMessage, PurchaseResultMessage } from "../kafka/types.js";
 import { withDbRetry } from "../utils/retry.js";
 import { transactionRepository } from "../repositories/transation.repository.js";
 import { accountRegistrationRepository } from "../repositories/account-registration.repository.js";
 import { jobFailureRepository } from "../repositories/jobFailure.repository.js";
+import { purchaseVerificationRepository } from "../repositories/purchase-verification.repository.js";
 
 export async function publishNextPendingOutbox(): Promise<void> {
   const outbox = await outboxRepository.findNextPending();
@@ -49,6 +50,14 @@ async function processOutbox(
         await processAccountRegistrationRetry(outbox)
       } else {
         await processAccountRegistrationResult(outbox)
+      }
+      return;
+
+    case "PURCHASE_VERIFICATION":
+      if (outbox.eventType === "RECEIPT_CHECK_REQUESTED") {
+        await processPurchaseVerificationRetry(outbox);
+      } else {
+        await processPurchaseVerificationResult(outbox);
       }
       return;
 
@@ -173,6 +182,106 @@ async function publishAccountRegistrationRetry(
       `account result try publish failed ` +
       `outboxId=${outbox.id} ` +
       `jobId=${outbox.jobId} `
+    );
+
+    throw error;
+  }
+}
+
+async function processPurchaseVerificationRetry(
+  outbox: TransactionOutbox,
+): Promise<void> {
+  await publishPurchaseVerificationRetry(outbox);
+
+  await markOutboxPublishedWithRetry(outbox.id);
+}
+
+async function publishPurchaseVerificationRetry(
+  outbox: TransactionOutbox,
+): Promise<void> {
+  try {
+    const verification = await purchaseVerificationRepository.findByJobId(outbox.jobId);
+
+    if (!verification) {
+      throw new Error(`Purchase verification not found: jobId=${outbox.jobId}`);
+    }
+
+    const message: PurchaseRequestMessage = {
+      jobId: verification.jobId,
+      jobType: "PURCHASE_VERIFICATION",
+      txHash: verification.txHash,
+      referenceId: verification.referenceId,
+    };
+
+    await sendPurchaseVerificationRetry(message);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+
+    console.error(
+      `[outbox-worker] purchase verification retry publish failed ` +
+      `outboxId=${outbox.id} jobId=${outbox.jobId}: ${reason}`,
+    );
+
+    throw error;
+  }
+}
+
+async function processPurchaseVerificationResult(
+  outbox: TransactionOutbox,
+): Promise<void> {
+  await publishPurchaseResult(outbox);
+
+  await markOutboxPublishedWithRetry(outbox.id);
+}
+
+async function publishPurchaseResult(
+  outbox: TransactionOutbox,
+): Promise<void> {
+  try {
+    const verification = await purchaseVerificationRepository.findByJobId(outbox.jobId);
+    if (!verification) {
+      return;
+    }
+
+    let message: PurchaseResultMessage;
+
+    if (verification.status === "CONFIRMED") {
+      message = {
+        jobId: verification.jobId,
+        jobType: "PURCHASE_VERIFICATION",
+        eventType: topicForEventType(outbox.eventType),
+        result: "APPROVING",
+        referenceId: verification.referenceId,
+      };
+    } else if (verification.status === "FAILED") {
+      const failure = await jobFailureRepository.findLatestFailureByJobId(outbox.jobId);
+
+      if (!failure) {
+        return;
+      }
+
+      message = {
+        jobId: verification.jobId,
+        jobType: "PURCHASE_VERIFICATION",
+        eventType: topicForEventType(outbox.eventType),
+        result: "REJECTED",
+        referenceId: verification.referenceId,
+        reason: failure.failureReason,
+      };
+    } else {
+      throw new Error(
+        `Invalid purchase verification result status: ` +
+        `jobId=${outbox.jobId}, status=${verification.status}`,
+      );
+    }
+
+    await sendPurchaseVerificationResult(message);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+
+    console.error(
+      `[outbox-worker] purchase result publish failed ` +
+      `outboxId=${outbox.id} jobId=${outbox.jobId}: ${reason}`,
     );
 
     throw error;
