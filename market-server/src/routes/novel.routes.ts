@@ -8,5 +8,6 @@ router.post("/", authMiddleware, novelController.create);
 router.get("/", authMiddleware, novelController.list);
 router.get("/mine", authMiddleware, novelController.listMine);
 router.get("/:id/trade", authMiddleware, novelController.getTradeInfo);
+router.post("/:id/purchase", authMiddleware, novelController.purchase);
 
 export default router;

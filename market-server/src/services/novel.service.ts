@@ -1,5 +1,6 @@
 import { contentRegistrationRepository, contentRegistrationSourceRepository } from "../repositories/content-registration.repository.js";
 import { contentListRepository } from "../repositories/content-list.repository.js";
+import { buyHistoryRepository } from "../repositories/buy-history.repository.js";
 import { ApiError } from "../utils/errors.js";
 import crypto from "node:crypto";
 import { withDbRetry } from "../utils/retry.js";
@@ -190,7 +191,7 @@ export const novelService = {
     };
   },
 
-  async getTradeInfo(contentId: number) {
+  async getTradeInfo(userId: number, contentId: number) {
     if (!Number.isInteger(contentId) || contentId < 1) {
       throw new ApiError(404, "NOT_FOUND", "존재하지 않는 소설입니다.");
     }
@@ -200,8 +201,14 @@ export const novelService = {
       throw new ApiError(404, "NOT_FOUND", "존재하지 않는 소설입니다.");
     }
 
+    // 이미 구매를 요청(REQUESTED)했거나 진행 중(PENDING)/완료(APPROVED)인 경우
+    // 재구매를 막기 위해 구매 여부를 응답에 포함한다. REJECTED는 재구매 가능.
+    const purchase = await buyHistoryRepository.findByBuyerAndContent(userId, contentId);
+    const alreadyPurchased = purchase !== null && purchase.status !== "REJECTED";
+
     // 거래 상태 검증: ACTIVE(판매 중)만 거래 가능.
-    if (content.status !== "ACTIVE") {
+    // 단, 이미 구매한 사용자는 판매 상태와 무관하게 콘텐츠를 열람할 수 있다.
+    if (!alreadyPurchased && content.status !== "ACTIVE") {
       throw new ApiError(409, "CONTENT_NOT_AVAILABLE", "거래할 수 없는 소설입니다.");
     }
 
@@ -213,6 +220,48 @@ export const novelService = {
       hK: content.hK,
       serverPkEnc: env.pkEnc,
       serverPkOwn: env.pkOwn,
+      alreadyPurchased,
     };
+  },
+
+  async purchaseContent(userId: number, contentId: number, txHash: unknown) {
+    if (!Number.isInteger(contentId) || contentId < 1) {
+      throw new ApiError(404, "NOT_FOUND", "존재하지 않는 소설입니다.");
+    }
+    if (typeof txHash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
+      throw new ApiError(400, "VALIDATION_ERROR", "txHash 형식이 올바르지 않습니다.");
+    }
+
+    const content = await contentListRepository.findById(contentId);
+    if (!content) {
+      throw new ApiError(404, "NOT_FOUND", "존재하지 않는 소설입니다.");
+    }
+
+    // 거래 상태 검증: ACTIVE(판매 중)만 거래 가능.
+    if (content.status !== "ACTIVE") {
+      throw new ApiError(409, "CONTENT_NOT_AVAILABLE", "거래할 수 없는 소설입니다.");
+    }
+
+    // jobId 생성 (Outbox / Kafka / Receipt worker에서 공유)
+    const jobId = crypto.randomUUID();
+
+    try {
+      // 구매 요청(BuyHistory) + 구매 요청 확인용 Outbox를 하나의 transaction으로 저장.
+      // referenceId는 BuyHistory.id.
+      await buyHistoryRepository.createWithOutbox({
+        jobId,
+        buyerId: userId,
+        contentId,
+        txHash,
+      });
+    } catch (error) {
+      // 중복 구매 요청 (buyerId, contentId unique)
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+        throw new ApiError(409, "ALREADY_PURCHASED", "이미 구매를 요청한 소설입니다.");
+      }
+      throw error;
+    }
+
+    return { contentId, txHash };
   },
 };

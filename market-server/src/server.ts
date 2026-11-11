@@ -26,7 +26,7 @@ async function startServer() {
     await ensureTopics([
       { topic: env.kafkaProofRequestedTopic, numPartitions: env.kafkaProofRequestedPartitions },
       { topic: env.kafkaJobFailedTopic, numPartitions: env.kafkaJobFailedPartitions },
-      { topic: env.kafkaAccountRegistrationResultTopic, numPartitions: env.kafkaAccountRegistrationResultPartitions },
+      { topic: env.kafkaTxReceiptResultTopic, numPartitions: env.kafkaTxreceiptResultPartitions },
     ]);
 
     // kafka consumer (PROOF_FAILED 처리)

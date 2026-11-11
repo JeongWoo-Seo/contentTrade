@@ -1,9 +1,10 @@
 import { outboxRepository } from "../repositories/outbox.repository.js";
 import { userRepository } from "../repositories/user.repository.js";
-import { sendProofRequested, sendAccountRegistration } from "../kafka/producer.js";
+import { buyHistoryRepository } from "../repositories/buy-history.repository.js";
+import { sendProofRequested, sendAccountRegistration, sendPurchaseRequest } from "../kafka/producer.js";
 import { withDbRetry } from "../utils/retry.js";
 import type { Outbox } from "@prisma/client";
-import type { ProofRequestedMessage, AccountRegistrationMessage } from "../kafka/types.js";
+import type { ProofRequestedMessage, TradeProofRequestedMessage, AccountRegistrationMessage, PurchaseRequestMessage } from "../kafka/types.js";
 
 /**
  * PENDING Outbox 하나를 Kafka로 publish하고 PUBLISHED 처리한다.
@@ -24,6 +25,11 @@ export async function publishNextPendingOutbox(): Promise<boolean> {
         await sendAccountRegistration(await buildAccountRegistrationMessage(outbox));
         break;
 
+      case "PURCHASE_VERIFICATION":
+        await sendPurchaseRequest(await buildPurchaseMessage(outbox));
+        break;
+
+      // CONTENT_REGISTRATION, TRADE_APPROVAL
       default:
         await sendProofRequested(buildProofRequestedMessage(outbox));
         break;
@@ -50,6 +56,7 @@ export async function publishNextPendingOutbox(): Promise<boolean> {
 }
 
 function buildProofRequestedMessage(outbox: Outbox): ProofRequestedMessage {
+  //CONTENT_REGISTRATION
   if (outbox.jobType === "CONTENT_REGISTRATION") {
     return {
       jobId: outbox.jobId,
@@ -59,6 +66,7 @@ function buildProofRequestedMessage(outbox: Outbox): ProofRequestedMessage {
     };
   }
 
+  //TRADE_APPROVAL
   return {
     jobId: outbox.jobId,
     jobType: "TRADE_APPROVAL",
@@ -86,6 +94,28 @@ export async function buildAccountRegistrationMessage(
     addr: user.addr,
     txHash: user.txHash,
     referenceId: user.id,
+    requestedAt: outbox.createdAt.toISOString(),
+  };
+}
+
+/**
+ * PURCHASE_VERIFICATION Outbox → Kafka 메시지. referenceId(BuyHistory.id)로
+ * 구매 이력을 조회해 확인할 txHash를 포함한다.
+ * 구매 이력이 없거나 txHash가 없으면 throw → markPublishFailed(재시도)로 이어진다.
+ */
+export async function buildPurchaseMessage(
+  outbox: Outbox,
+): Promise<PurchaseRequestMessage> {
+  const buyHistory = await buyHistoryRepository.findById(outbox.referenceId);
+  if (!buyHistory || !buyHistory.txHash) {
+    throw new Error(`purchase outbox references missing buy history or txHash id=${outbox.referenceId}`);
+  }
+
+  return {
+    jobId: outbox.jobId,
+    jobType: "PURCHASE_VERIFICATION",
+    txHash: buyHistory.txHash,
+    referenceId: buyHistory.id,
     requestedAt: outbox.createdAt.toISOString(),
   };
 }

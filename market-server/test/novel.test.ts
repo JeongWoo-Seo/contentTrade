@@ -22,6 +22,7 @@ async function createUser(username: string) {
       pkOwn: "a".repeat(64),
       pkEnc: "b".repeat(128),
       eoa: `0x${randomBytes(20).toString("hex")}`,
+      txHash: `0x${randomBytes(32).toString("hex")}`,
     },
   });
 }

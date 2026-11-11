@@ -26,16 +26,17 @@ enum RegistrationStatus {
 }
 
 enum BuyStatus {
-  REQUESTED // 구매 요청 생성
-  PENDING // 거래 승인 대기
-  APPROVED // 최종 승인
-  REJECTED // 거래 거절
+  REVIEWING  // 구매 요청 확인 및 검증 중
+  APPROVING  // 검증 완료 후 블록체인 승인 처리 중
+  APPROVED   // 최종 승인 완료
+  REJECTED   // 거래 거절
 }
 
 enum OutboxJobType {
   CONTENT_REGISTRATION
   TRADE_APPROVAL
   ACCOUNT_REGISTRATION
+  PURCHASE_VERIFICATION
 }
 
 enum OutboxStatus {
@@ -239,11 +240,8 @@ model BuyHistory {
   // 구매한 소설 ID
   contentId Int @map("content_id")
 
-  // 구매 당시 가격
-  price Decimal @db.Decimal(18, 0)
-
   // 거래 상태
-  status BuyStatus @default(REQUESTED)
+  status BuyStatus @default(REVIEWING)
 
   // 거래 거절 사유
   rejectionReason String? @map("rejection_reason") @db.Text

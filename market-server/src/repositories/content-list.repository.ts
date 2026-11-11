@@ -39,4 +39,12 @@ export const contentListRepository = {
       },
     });
   },
+
+  // 구매 요청 상태 검증용: id + status만 조회.
+  async findById(id: number) {
+    return prisma.contentList.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
+  },
 };

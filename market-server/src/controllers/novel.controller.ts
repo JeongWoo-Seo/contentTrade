@@ -20,7 +20,12 @@ export const novelController = {
   }),
 
   getTradeInfo: asyncHandler(async (req: Request, res: Response) => {
-    const result = await novelService.getTradeInfo(Number(req.params.id));
+    const result = await novelService.getTradeInfo(req.userId!, Number(req.params.id));
+    res.json(result);
+  }),
+
+  purchase: asyncHandler(async (req: Request, res: Response) => {
+    const result = await novelService.purchaseContent(req.userId!, Number(req.params.id), req.body?.txHash);
     res.json(result);
   }),
 };

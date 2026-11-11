@@ -1,9 +1,11 @@
 import { Kafka, type Consumer } from "kafkajs";
+import { randomUUID } from "node:crypto";
 import { env } from "../config/env.js";
-import type { JobFailedMessage, AccountRegistrationResultMessage } from "./types.js";
+import type { JobFailedMessage, AccountRegistrationResultMessage, AccountResultMessage, PurchaseResultMessage } from "./types.js";
 import { novelService } from "../services/novel.service.js";
 import { outboxRepository } from "../repositories/outbox.repository.js";
 import { userRepository } from "../repositories/user.repository.js";
+import { buyHistoryRepository } from "../repositories/buy-history.repository.js";
 import { withDbRetry } from "../utils/retry.js";
 
 const kafka = new Kafka({
@@ -84,7 +86,7 @@ export async function connectAccountResultConsumer(): Promise<void> {
     await accountResultConsumer.connect();
 
     await accountResultConsumer.subscribe({
-        topic: env.kafkaAccountRegistrationResultTopic,
+        topic: env.kafkaTxReceiptResultTopic,
         fromBeginning: false,
     });
 
@@ -97,9 +99,13 @@ export async function connectAccountResultConsumer(): Promise<void> {
             try {
                 const data = JSON.parse(
                     message.value.toString()
-                ) as AccountRegistrationResultMessage;
+                ) as AccountResultMessage;
 
-                await handleAccountResult(data);
+                if (data.jobType === "PURCHASE_VERIFICATION") {
+                    await handlePurchaseResult(data);
+                } else {
+                    await handleAccountResult(data);
+                }
             } catch (error) {
                 console.error("[market-server] failed to process account result", error);
 
@@ -141,5 +147,41 @@ export async function handleAccountResult(
     console.log(
         `[market-server] account ${message.result} ` +
         `jobId=${message.jobId} userId=${outbox.referenceId}`
+    );
+}
+
+/**
+ * 구매 검증 결과 처리. jobId → outbox.referenceId(BuyHistory.id)로 매핑해
+ * 구매 이력 상태를 APPROVING/REJECTED로 전이한다(중복 메시지에도 멱등).
+ */
+export async function handlePurchaseResult(
+    message: PurchaseResultMessage
+): Promise<void> {
+    const outbox = await withDbRetry(
+        () => outboxRepository.findByJobId(message.jobId),
+        { operationName: `findOutboxByJobId:${message.jobId}` },
+    );
+
+    if (!outbox) {
+        console.warn(`[market-server] purchase result for unknown jobId=${message.jobId} — skipping`);
+        return;
+    }
+
+    // 거래 승인 작업을 위한 작업번호 생성 (APPROVING인 경우에만 사용)
+    const tradeApprovalJobId = randomUUID();
+
+    await withDbRetry(
+        () => buyHistoryRepository.markPurchaseStatusWithOutbox({
+            id: outbox.referenceId,
+            status: message.result,
+            rejectionReason: message.reason,
+            tradeApprovalJobId,
+        }),
+        { operationName: `markPurchaseStatus:${message.jobId}` },
+    );
+
+    console.log(
+        `[market-server] purchase ${message.result} ` +
+        `jobId=${message.jobId} buyHistoryId=${outbox.referenceId}`
     );
 }

@@ -31,14 +31,36 @@ export interface AccountRegistrationMessage
   txHash: string;
 }
 
+// 구매 요청 트랜잭션 확인 (Receipt worker 요청용). purchaseContent tx 확인을 요청한다.
+export interface PurchaseRequestMessage
+  extends BaseMessage {
+  jobType: "PURCHASE_VERIFICATION";
+  txHash: string;
+}
+
 // 계좌 등록 확인 결과 (blockchain worker → market-server). 
 // result에 따라 회원 상태를 ACTIVE 또는 REJECTED로 전이한다.
 export interface AccountRegistrationResultMessage {
   jobId: string;
+  jobType: "ACCOUNT_REGISTRATION";
   referenceId: number;
   result: "ACTIVE" | "REJECTED";
   reason?: string;
 }
+
+// 구매 요청 검증 결과 (blockchain worker → market-server).
+// result에 따라 구매 이력 상태를 APPROVING 또는 REJECTED로 전이한다.
+export interface PurchaseResultMessage {
+  jobId: string;
+  jobType: "PURCHASE_VERIFICATION";
+  referenceId: number;
+  result: "APPROVING" | "REJECTED";
+  reason?: string;
+}
+
+export type AccountResultMessage =
+  | AccountRegistrationResultMessage
+  | PurchaseResultMessage;
 
 // ============================================================
 // Job Failed

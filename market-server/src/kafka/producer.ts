@@ -1,5 +1,5 @@
 import { kafka } from "./kafka.js";
-import type { ProofRequestedMessage, AccountRegistrationMessage } from "./types.js";
+import type { ProofRequestedMessage, AccountRegistrationMessage, PurchaseRequestMessage, TradeProofRequestedMessage } from "./types.js";
 import { env } from "../config/env.js";
 
 const producer = kafka.producer({
@@ -36,6 +36,20 @@ export async function sendProofRequested(
 
 export async function sendAccountRegistration(
   message: AccountRegistrationMessage
+): Promise<void> {
+  await producer.send({
+    topic: env.kafkaReceiptTopic,
+    messages: [
+      {
+        key: message.jobId,
+        value: JSON.stringify(message),
+      },
+    ],
+  });
+}
+
+export async function sendPurchaseRequest(
+  message: PurchaseRequestMessage
 ): Promise<void> {
   await producer.send({
     topic: env.kafkaReceiptTopic,
@@ -91,9 +105,6 @@ export async function ensureTopics(
       } else {
         console.error("Unknown error:", error);
       }
-
-      // 생성 실패가 이미 존재하는 토픽 때문일 수도 있으므로,
-      // 메타데이터를 확인한 뒤 아래 검증을 계속 진행한다.
     }
 
     // 토픽별 메타데이터 확인 및 파티션 수 검증
