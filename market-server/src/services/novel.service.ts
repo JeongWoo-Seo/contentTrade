@@ -264,4 +264,24 @@ export const novelService = {
 
     return { contentId, txHash };
   },
+
+  async getTradeApproval(tradeId: number) {
+    if (!Number.isInteger(tradeId) || tradeId < 1) {
+      throw new ApiError(404, "NOT_FOUND", "존재하지 않는 구매입니다.");
+    }
+
+    const buyHistory = await buyHistoryRepository.findByIdWithContentAndBuyer(tradeId);
+    if (!buyHistory) {
+      throw new ApiError(404, "NOT_FOUND", "존재하지 않는 구매입니다.");
+    }
+
+    return {
+      encryptedDataEncKey: Buffer.from(buyHistory.content.encryptedDataKey),
+      ctR: buyHistory.content.ctR,
+      price: buyHistory.content.price.toNumber(),
+      hK: buyHistory.content.hK,
+      pkEncCons: buyHistory.buyer.pkEnc,
+      pkOwnAuth: buyHistory.content.author.pkOwn
+    };
+  },
 };

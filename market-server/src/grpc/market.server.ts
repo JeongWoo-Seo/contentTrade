@@ -10,8 +10,8 @@ export function createGrpcServer() {
         Market.MarketServiceService,
         {
             getContentRegistration: async (
-                call: any,
-                callback: any
+                call: {request: Market.GetContentRegistrationRequest},
+                callback: grpc.sendUnaryData<Market.GetContentRegistrationResponse>
             ) => {
                 try {
                     const { registrationId, jobId } = call.request;
@@ -48,7 +48,7 @@ export function createGrpcServer() {
 
             completeContentRegistration: async (
                 call: { request: Market.CompleteContentRegistrationRequest },
-                callback: any
+                callback: grpc.sendUnaryData<Market.CompleteContentRegistrationResponse>
             ) => {
                 try {
                     const {
@@ -96,7 +96,43 @@ export function createGrpcServer() {
                     });
                 }
             },
-        }
+
+            getTradeApproval: async (
+                call: { request: Market.GetTradeApprovalRequest },
+                callback: grpc.sendUnaryData<Market.GetTradeApprovalResponse>
+            ) => {
+                try {
+                    const { jobId, tradeId } = call.request;
+
+                    console.log(
+                        `GetTradeApproval`,
+                        `tradeId=${tradeId}`,
+                        `jobId=${jobId}`
+                    );
+
+                    const data = await novelService.getTradeApproval(tradeId);
+
+                    return callback(null, {
+                        jobId,
+                        tradeId,
+                        encryptedDataEncKey: data.encryptedDataEncKey,
+                        ctR: data.ctR,
+                        price: data.price,
+                        hK: data.hK,
+                        pkEncCons: data.pkEncCons,
+                        pkOwnAuth: data.pkOwnAuth
+                    });
+
+                } catch (error) {
+                    console.error(error);
+
+                    return callback({
+                        code: grpc.status.INTERNAL,
+                        message: error instanceof Error ? error.message : "Internal server error",
+                    });
+                }
+            }
+        },
     );
 
     return server;

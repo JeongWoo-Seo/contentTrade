@@ -176,7 +176,7 @@ model ContentList {
   encryptionVersion Int @default(1) @map("encryption_version")
 
   // ----------------------------------------------------------
-  // Poseidon 공개값 (canonical 64-char hex string)
+  // Poseidon (canonical dec string)
   // ----------------------------------------------------------
 
   // h_k = Poseidon(pk_own, dataEncKey)

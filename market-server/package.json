@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "node --test-concurrency=1 --import tsx --test test/auth.test.ts test/novel.test.ts",
-    "db_migrate": "prisma migrate dev"
+    "db_migrate": "prisma migrate dev",
+    "grpc_install": "npm install @content-trade/grpc-contract"
   },
   "keywords": [],
   "author": "",

@@ -17,6 +17,25 @@ export const buyHistoryRepository = {
     });
   },
 
+  // 거래 승인 데이터 조회용: content(암호화 키/hash/작가) + buyer(pkEnc).
+  async findByIdWithContentAndBuyer(id: number) {
+    return prisma.buyHistory.findUnique({
+      where: { id },
+      select: {
+        content: {
+          select: {
+            encryptedDataKey: true,
+            ctR: true,
+            price: true,
+            hK: true,
+            author: { select: { pkOwn: true } },
+          },
+        },
+        buyer: { select: { pkEnc: true } },
+      },
+    });
+  },
+
   /**
    * 구매 요청(BuyHistory) + 구매 요청 확인용 Outbox를 하나의 transaction으로 생성한다.
    * referenceId는 BuyHistory.id.
