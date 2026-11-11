@@ -1,7 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { outboxRepository } from "./outbox.repository.js";
 import type { TransactionOutbox, ContentRegistrationTransaction, TradeApprovalTransaction } from "@prisma/client";
-import { type AccountRegistrationRequestMessage } from "../kafka/types.js";
 
 export const transactionRepository = {
     async markTransactionFailedProcessed(
@@ -17,7 +16,7 @@ export const transactionRepository = {
             } else if (outbox.jobType === "TRADE_APPROVAL") {
                 await tx.tradeApprovalTransaction.delete({
                     where: {
-                        jobId: outbox.jobId,
+                        approvalJobId: outbox.jobId,
                     },
                 });
             } else {
@@ -84,7 +83,7 @@ export const transactionRepository = {
     async failTradeApproval(
         job: {
             id: number;
-            jobId: string;
+            approvalJobId: string | null;
             purchaseId: number;
         },
         failureReason: string,
@@ -108,7 +107,7 @@ export const transactionRepository = {
             // 실패 이력 저장
             await tx.jobFailure.create({
                 data: {
-                    jobId: job.jobId,
+                    jobId: job.approvalJobId!,
                     jobType: "TRADE_APPROVAL",
                     referenceId: job.purchaseId,
                     failureReason,
@@ -117,7 +116,7 @@ export const transactionRepository = {
 
             // 실패 이벤트 Outbox 등록
             await outboxRepository.create(tx, {
-                jobId: job.jobId,
+                jobId: job.approvalJobId!,
                 jobType: "TRADE_APPROVAL",
                 eventType: "TRANSACTION_FAILED",
             });
@@ -175,7 +174,7 @@ export const transactionRepository = {
             }
 
             await outboxRepository.create(tx, {
-                jobId: job.jobId,
+                jobId: job.approvalJobId!,
                 jobType: "TRADE_APPROVAL",
                 eventType: "TRANSACTION_COMPLETED",
             });

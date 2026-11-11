@@ -148,7 +148,7 @@ async function confirmContentRegistrationWithRetry(
 ///////////////////////////////////////////
 
 async function processTradeApprovalReceipt(jobId: string): Promise<void> {
-  const job = await tradeApprovalTransactionRepository.findByJobId(jobId);
+  const job = await tradeApprovalTransactionRepository.findByApprovalJobId(jobId);
   if (!job || job.status !== "SUBMITTED") {
     return;
   }
@@ -156,7 +156,7 @@ async function processTradeApprovalReceipt(jobId: string): Promise<void> {
   const result = await checkTradeApprovalReceipt(job.txHash!);
 
   if (result.status === "PENDING") {
-    await markReceiptCheckPendingWithRetry(job.jobId, "TRADE_APPROVAL");
+    await markReceiptCheckPendingWithRetry(job.approvalJobId!, "TRADE_APPROVAL");
     return;
   } else if (result.status === "FAILED") {
     await failTradeApprovalWithRetry(job, result);
@@ -175,7 +175,7 @@ async function failTradeApprovalWithRetry(
   return withDbRetry(
     () => transactionRepository.failTradeApproval(job, failureReason),
     {
-      operationName: `failTradeApproval:${job.jobId}`,
+      operationName: `failTradeApproval:${job.approvalJobId!}`,
     },
   );
 }
@@ -186,7 +186,7 @@ async function confirmTradeApprovalWithRetry(
   return withDbRetry(
     () => transactionRepository.confirmTradeApproval(job),
     {
-      operationName: `confirmTradeApproval:${job.jobId}`,
+      operationName: `confirmTradeApproval:${job.approvalJobId!}`,
     },
   );
 }

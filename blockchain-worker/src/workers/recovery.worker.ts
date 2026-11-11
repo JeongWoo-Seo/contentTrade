@@ -69,7 +69,7 @@ export class RecoveryWorker {
     });
     const trade = await prisma.tradeApprovalTransaction.findMany({
       where: { status },
-      select: { jobId: true },
+      select: { approvalJobId: true },
     });
 
     return [
@@ -78,11 +78,13 @@ export class RecoveryWorker {
         jobType: "CONTENT_REGISTRATION" as const,
         eventType,
       })),
-      ...trade.map((j) => ({
-        jobId: j.jobId,
-        jobType: "TRADE_APPROVAL" as const,
-        eventType,
-      })),
+      ...trade
+        .filter((j) => j.approvalJobId !== null)
+        .map((j) => ({
+          jobId: j.approvalJobId!,
+          jobType: "TRADE_APPROVAL" as const,
+          eventType,
+        })),
     ];
   }
 }

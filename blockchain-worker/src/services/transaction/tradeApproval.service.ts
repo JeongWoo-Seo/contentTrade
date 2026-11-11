@@ -56,7 +56,7 @@ export async function processTradeApproval(
     if (!job.proof || !job.publicSignals) {
         console.warn(
             `[blockchain-worker] trade approval job has no proof yet: ` +
-            `jobId=${job.jobId}`,
+            `jobId=${job.approvalJobId!}`,
         );
         return;
     }
@@ -66,7 +66,7 @@ export async function processTradeApproval(
         // ============================================================
 
         const simulation = await simulateTradeApprovalWithRetry({
-            jobId: job.jobId,
+            jobId: job.approvalJobId!,
             proof: job.proof,
             publicSignals: job.publicSignals,
         });
@@ -84,7 +84,7 @@ export async function processTradeApproval(
         // ============================================================
 
         const transaction = await buildTradeApprovalTransactionWithRetry({
-            jobId: job.jobId,
+            jobId: job.approvalJobId!,
             proof: job.proof,
             publicSignals: job.publicSignals,
         });
@@ -116,7 +116,7 @@ export async function processTradeApproval(
         // ============================================================
 
         const submittedJob = await markTradeApprovalSubmittedWithRetry({
-            jobId: job.jobId,
+            jobId: job.approvalJobId!,
             txHash: submitted.txHash,
             nonce: submitted.nonce,
         });
@@ -127,14 +127,14 @@ export async function processTradeApproval(
 
         console.log(
             `[blockchain-worker] trade approval SUBMITTED ` +
-            `jobId=${job.jobId} ` +
+            `jobId=${job.approvalJobId!} ` +
             `txHash=${submitted.txHash} ` +
             `nonce=${submitted.nonce}`,
         );
     } catch (error) {
         console.error(
             `[blockchain-worker] trade approval processing error ` +
-            `jobId=${job.jobId}:`,
+            `jobId=${job.approvalJobId!}:`,
             error,
         );
 
@@ -161,7 +161,7 @@ async function claimTradeApprovalJob(
     return prisma.$transaction(async (tx) => {
         const updated = await tx.tradeApprovalTransaction.updateMany({
             where: {
-                jobId,
+                approvalJobId: jobId,
                 status: "PENDING",
             },
             data: {
@@ -176,7 +176,7 @@ async function claimTradeApprovalJob(
 
         const job = await tx.tradeApprovalTransaction.findUnique({
             where: {
-                jobId,
+                approvalJobId: jobId,
             },
         });
 
@@ -443,7 +443,7 @@ async function markTradeApprovalSubmitted({
     return prisma.$transaction(async (tx) => {
         const updated = await tx.tradeApprovalTransaction.updateMany({
             where: {
-                jobId,
+                approvalJobId: jobId,
                 status: "PROCESSING",
             },
             data: {
@@ -489,12 +489,12 @@ async function markTradeApprovalSubmitted({
 async function failTradeApprovalJobWithRetry(
     job: {
         id: number;
-        jobId: string;
+        approvalJobId: string | null;
         purchaseId: number;
     },
     reason: string,
 ) {
     return retryBase(() => transactionRepository.failTradeApproval(job,reason), {
-        operationName: `fail trade approval jobId=${job.jobId}`,
+        operationName: `fail trade approval jobId=${job.approvalJobId!}`,
     });
 }

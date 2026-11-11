@@ -68,7 +68,7 @@ export const purchaseVerificationRepository = {
       // 3. TradeApprovalTransaction 생성 (승인 트랜잭션 생성 전 stub)
       await tx.tradeApprovalTransaction.create({
         data: {
-          jobId,
+          verificationJobId: jobId,
           purchaseId: verification.referenceId,
           tradeData: JSON.stringify(result.tradeData),
           status: "PENDING",

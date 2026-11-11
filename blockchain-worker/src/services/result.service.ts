@@ -72,7 +72,7 @@ async function processTradeApprovalResult(
   // --------------------------------------------------
   // Blockchain 단계 결과
   // --------------------------------------------------
-  const job = await tradeApprovalTransactionRepository.findByJobId(jobId);
+  const job = await tradeApprovalTransactionRepository.findByApprovalJobId(jobId);
 
   if (!job) {
     // 이미 전송 완료되어 삭제된 Job
@@ -87,16 +87,16 @@ async function processTradeApprovalResult(
   }
 
   const request: Market.CompleteTradeApprovalRequest = {
-    jobId: job.jobId,
+    jobId: job.approvalJobId!,
     tradeId: job.purchaseId,
     txHash: job.txHash ?? "",
   };
 
   await completeTradeApprovalWithRetry(request);
 
-  await deleteTradeApprovalTransactionWithRetry(job.jobId, job.id);
+  await deleteTradeApprovalTransactionWithRetry(job.approvalJobId!, job.id);
 
-  console.log(`[result-send-worker] trade approval result sent jobId=${job.jobId}`);
+  console.log(`[result-send-worker] trade approval result sent jobId=${job.approvalJobId!}`);
 }
 
 async function deleteContentRegistrationTransactionWithRetry(

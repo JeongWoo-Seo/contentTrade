@@ -37,10 +37,10 @@ export const tradeApprovalTransactionRepository = {
     });
   },
 
-  async findByJobId(jobId: string) {
+  async findByApprovalJobId(approvalJobId: string) {
     return prisma.tradeApprovalTransaction.findUnique({
       where: {
-        jobId,
+        approvalJobId,
       },
     });
   },
@@ -82,14 +82,6 @@ export const tradeApprovalTransactionRepository = {
         retryCount: {
           increment: 1,
         },
-      },
-    });
-  },
-
-  async deleteByJobId(jobId: string): Promise<void> {
-    await prisma.tradeApprovalTransaction.delete({
-      where: {
-        jobId,
       },
     });
   },

@@ -102,8 +102,10 @@ model TradeApprovalTransaction {
 
   id Int @id @default(autoincrement())
 
-  // 작업 ID
-  jobId String @unique @map("job_id") @db.VarChar(100)
+  // 구매 확인 작업 ID (verification jobId)
+  verificationJobId String @unique @map("verification_job_id") @db.VarChar(100)
+  // 거래 승인 작업 ID (approval jobId, proof 생성 후 설정)
+  approvalJobId String? @unique @map("approval_job_id") @db.VarChar(100)
   // 구매 ID
   purchaseId Int @map("purchase_id")
   // 구매 검증에서 추출한 tradeData (승인 작업에 필요한 정보, JSON)
@@ -123,7 +125,7 @@ model TradeApprovalTransaction {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@index([jobId])
+  @@index([verificationJobId])
   @@index([status])
   @@index([createdAt])
   @@index([status, createdAt])
