@@ -7,9 +7,9 @@ import { useAuth } from '../../auth/hooks/useAuth';
 import { getContractAddress } from '../../auth/services/contractService';
 import { submitPurchaseContent, getEna } from '../services/contractService';
 import { computeAccountBalanceUpdate } from '../../../utils/crypto/balance';
-import { createPurchaseOrder } from '../services/novelService';
+import { createPurchaseOrder, buildGenerateTradeInput } from '../services/purchaseOrder';
 import { generateTradeProof } from '../services/proofService';
-import { splitPointHex, hexToDecimal } from '../../../utils/crypto/util';
+import { splitPointHex } from '../../../utils/crypto/util';
 import '../styles/NovelList.css';
 
 const PAGE_SIZE = 20;
@@ -84,64 +84,27 @@ export function NovelList() {
         throw new Error("User encryption keys are missing");
       }
 
-      //key 값은 원래 hex string이고 h_k는 bigint string
-      const pk_enc_cons = splitPointHex(secrets.pkEnc);
-      const pk_enc_svr = splitPointHex(tradeInfo.serverPkEnc);
-      const pk_enc_auth = splitPointHex(tradeInfo.authorPkEnc);
-
       const purchaseOrder = await createPurchaseOrder({
-        pk_enc_cons,
-        pk_enc_svr,
-        pk_enc_auth,
+        pk_enc_cons: splitPointHex(secrets.pkEnc),
+        pk_enc_svr: splitPointHex(tradeInfo.serverPkEnc),
+        pk_enc_auth: splitPointHex(tradeInfo.authorPkEnc),
         pk_own_svr: tradeInfo.serverPkOwn,
         pk_own_auth: tradeInfo.authorPkOwn,
         h_k: tradeInfo.hK,
         price: BigInt(tradeInfo.price),
       });
 
-      //dec(bigint) string 형태로 input 구성
-      const input = {
-        // =========================================
-        // Public inputs (17개)
-        // =========================================
-        cm_auth: purchaseOrder.cm_auth.toString(),
-        cm_svr: purchaseOrder.cm_svr.toString(),
-
-        c0: [purchaseOrder.c0[0].toString(),purchaseOrder.c0[1].toString()],
-
-        c1_auth: purchaseOrder.c1_auth.toString(),
-        c1_svr: purchaseOrder.c1_svr.toString(),
-
-        c2: purchaseOrder.c2.map((v) => v.toString()), // string[6]
-
-        oldEna_r: balanceUpdate.oldEna.r.toString(),
-        oldEna_ct: balanceUpdate.oldEna.ct.toString(),
-
-        newEna_r: balanceUpdate.newEna.r.toString(),
-        newEna_ct: balanceUpdate.newEna.ct.toString(),
-
-        // =========================================
-        // Private inputs (15개)
-        // =========================================
-        fee_svr: purchaseOrder.fee_svr.toString(),
-        fee_auth: purchaseOrder.fee_auth.toString(),
-
-        r_cm: purchaseOrder.r_cm.toString(),
-        r_enc: purchaseOrder.r_enc.toString(),
-        k_enc: purchaseOrder.k_enc.toString(),
-
-        h_k: tradeInfo.hK.toString(),
-
-        //hex string -> dec string
-        pk_enc_cons: [hexToDecimal(pk_enc_cons[0]),hexToDecimal(pk_enc_cons[1])],
-        pk_enc_svr: [hexToDecimal(pk_enc_svr[0]), hexToDecimal(pk_enc_svr[1])],
-        pk_enc_auth: [hexToDecimal(pk_enc_auth[0]), hexToDecimal(pk_enc_auth[1])],
-
-        pk_own_svr: hexToDecimal(tradeInfo.serverPkOwn),
-        pk_own_auth: hexToDecimal(tradeInfo.authorPkOwn),
-
-        k_ena: hexToDecimal(kENA)
-      }
+      const input = buildGenerateTradeInput({
+        purchaseOrder,
+        balanceUpdate,
+        hK: tradeInfo.hK,
+        serverPkOwn: tradeInfo.serverPkOwn,
+        authorPkOwn: tradeInfo.authorPkOwn,
+        pkEnc: secrets.pkEnc,
+        serverPkEnc: tradeInfo.serverPkEnc,
+        authorPkEnc: tradeInfo.authorPkEnc,
+        kENA,
+      });
 
       // [구매 절차 6/8] Proof + public input 생성
       const { proof, publicSignals } = await generateTradeProof(input);
