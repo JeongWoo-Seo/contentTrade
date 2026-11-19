@@ -15,6 +15,8 @@ export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
 
   masterKey: requiredEnv("MASTER_KEY"),
+  skEncSvr: requiredEnv("SK_ENC"),
+  pkOwn: requiredEnv("PK_OWN"),
 
   // Kafka
   kafkaBrokers: (process.env.KAFKA_BROKERS ?? "localhost:9092").split(","),

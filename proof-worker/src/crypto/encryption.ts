@@ -1,294 +1,372 @@
-import {
-  BN254_SCALAR_FIELD,
-  DATA_BLOCK_BYTES,
-  DATA_BLOCK_NUM,
-  bytes31ToField,
-  fieldToBytes31,
-  fieldToBytes32,
-  parseFieldElement,
-  poseidon2,
-  poseidonHash484,
-  randomFieldElement,
-} from "./poseidon.js";
-import { env } from "../config/env.js";
-import { wrapDataEncKey } from "./key-wrapping.js";
 
-// ------------------------------------------------------------
-// RegistContent 회로와 일치하는 콘텐츠 등록 암호화
-//
-//   data[i]   = 31-byte plaintext block → bigint
-//   hash_i    = Poseidon(dataEncKey + i, CT_r)
-//   CT_data[i] = (data[i] + hash_i) mod r
-//   h_k       = Poseidon(pk_own, dataEncKey)
-//   h_data    = Poseidon(data[0..N-1])
-//   h_ct      = Poseidon(CT_data[0..N-1])
-//
-// 공개 신호 순서: [pk_own, h_k, h_ct, h_data]
-// ------------------------------------------------------------
+import { randomBytes } from "node:crypto";
+import { buildBabyjub, buildPoseidon } from "circomlibjs";
 
-// 원문 byte 길이를 저장하기 위한 3 bytes
-const PLAIN_TEXT_LENGTH_BYTES = 3;
+type BabyJub = Awaited<ReturnType<typeof buildBabyjub>>;
+type Poseidon = Awaited<ReturnType<typeof buildPoseidon>>;
 
-// [4 bytes length][plaintext][0x80][0x00 ...] padding 후 총 byte 수
-const PADDED_CONTENT_BYTES = DATA_BLOCK_NUM * DATA_BLOCK_BYTES;
+// ========================================
+// circomlibjs 초기화 결과 캐싱
+// ========================================
 
-// 실제 plaintext 최대 byte 수
-const MAX_CONTENT_BYTES = PADDED_CONTENT_BYTES - PLAIN_TEXT_LENGTH_BYTES - 1;
+let babyjubPromise: ReturnType<typeof buildBabyjub> | undefined;
+let poseidonPromise: ReturnType<typeof buildPoseidon> | undefined;
 
-// 암호화 포맷 버전 (현재 1)
-export const ENCRYPTION_VERSION = 1;
-
-interface ContentRegistrationWitness {
-    dataEncKey: string;
-    data: string[];
-    CT_data: string[];
-    CT_r: string;
-}
-
-export interface ContentEncryptionResult {
-  pk_own: string;
-  // CT_data 를 각각 32-byte big-endian 으로 연결 (DATA_BLOCK_NUM × 32 bytes)
-  encryptedData: Uint8Array<ArrayBuffer>;
-
-  // dataEncKey를 master key로 AES-256-GCM 암호화한 값 ([IV(12)][authTag(16)][ciphertext(32)])
-  encryptedDataKey: Uint8Array<ArrayBuffer>;
-  // Poseidon 암호화 랜덤값 CT_r (canonical 64-char hex string)
-  ctR: string;
-
-  // 암호화 포맷 버전
-  encryptionVersion: number;
-
-  // Poseidon 공개값 (canonical 64-char hex string)
-  hK: string;
-  hData: string;
-  hCt: string;
-
-  // 회로 witness (private ZK input, BigInt → decimal string)
-  witness: ContentRegistrationWitness;
-}
-
-export type ContentEncryptionOutcome =
-  | {
-    success: true;
-    result: ContentEncryptionResult;
-  }
-  | {
-    success: false;
-    reason: string;
-  };
-
-export function encryptContent(
-  originalText: string,
-  authorPkOwn: string,
-): ContentEncryptionOutcome {
-  if (!originalText) {
-    return {
-      success: false,
-      reason: "originalText is required",
-    };
-  }
-
-  if (!authorPkOwn) {
-    return {
-      success: false,
-      reason: "authorPkOwn is required",
-    };
-  }
-
-  const plaintext = Buffer.from(originalText, "utf8");
-
-  if (plaintext.length > MAX_CONTENT_BYTES) {
-    return {
-      success: false,
-      reason: `Content is too large: ${plaintext.length} bytes (maximum ${MAX_CONTENT_BYTES} bytes)`,
-    };
-  }
-
-  // ==========================================================
-  // 1. Padding → 31-byte block 분할
-  // ==========================================================
-
-  const paddedPlaintext = padPlaintext(plaintext);
-  const blocks = splitInto31ByteBlocks(paddedPlaintext);
-
-  const data = blocks.map((block) => bytes31ToField(block));
-
-  // ==========================================================
-  // 2. 암호화 키 + randomness
-  // ==========================================================
-
-  const dataEncKey = randomFieldElement();
-  const CT_r = randomFieldElement();
-
-  // ==========================================================
-  // 3. h_k = Poseidon(pk_own, dataEncKey)
-  // ==========================================================
-
-  const pkOwnField = parseFieldElement(authorPkOwn);
-  const h_k = poseidon2(pkOwnField, dataEncKey);
-
-  // ==========================================================
-  // 4. CT_data[i] = (data[i] + Poseidon(dataEncKey + i, CT_r)) mod r
-  // ==========================================================
-
-  const CT_data = data.map((d, i) => {
-    const hash_i = poseidon2((dataEncKey + BigInt(i)) % BN254_SCALAR_FIELD, CT_r);
-
-    return (d + hash_i) % BN254_SCALAR_FIELD;
-  });
-
-  // ==========================================================
-  // 5. h_data = Poseidon(data[0..N-1])
-  //    h_ct   = Poseidon(CT_data[0..N-1])
-  // ==========================================================
-
-  const h_data = poseidonHash484(data);
-  const h_ct = poseidonHash484(CT_data);
-
-  // ==========================================================
-  // 6. dataEncKey 서버-side key wrapping (AES-256-GCM)
-  // ==========================================================
-
-  const masterKey = Buffer.from(env.masterKey, "base64");
-  const encryptedDataKey = wrapDataEncKey(dataEncKey, masterKey);
-
-  // ==========================================================
-  // 7. 결과 (witness + public signals + DB 저장용)
-  // ==========================================================
-
-  const witness: ContentRegistrationWitness = {
-    dataEncKey: dataEncKey.toString(),
-    data: data.map((d) => d.toString()),
-    CT_data: CT_data.map((c) => c.toString()),
-    CT_r: CT_r.toString(),
-  };
-
-  const result: ContentEncryptionResult = {
-    pk_own: pkOwnField.toString(),
-    encryptedData: Uint8Array.from(
-      Buffer.concat(CT_data.map((c) => Buffer.from(fieldToBytes32(c)))),
-    ),
-    encryptedDataKey,
-    ctR: CT_r.toString(),
-    encryptionVersion: ENCRYPTION_VERSION,
-    hK: h_k.toString(),
-    hData: h_data.toString(),
-    hCt: h_ct.toString(),
-    witness,
-  };
-
-  return {
-    success: true,
-    result,
-  };
-}
-
-/**
- * 암호문(CT_data) + dataEncKey + CT_r 로 원문을 복원한다.
- * round-trip 검증용.
- */
-export function decryptContent(
-  encryptedData: Uint8Array,
-  dataEncKey: bigint,
-  CT_r: bigint,
-): Buffer {
-  if (encryptedData.length !== DATA_BLOCK_NUM * 32) {
-    throw new Error(
-      `Invalid encrypted data length: ${encryptedData.length}`,
-    );
-  }
-
-  const CT_data: bigint[] = [];
-
-  for (let i = 0; i < DATA_BLOCK_NUM; i++) {
-    const slice = encryptedData.subarray(i * 32, (i + 1) * 32);
-
-    let value = 0n;
-
-    for (const byte of slice) {
-      value = (value << 8n) | BigInt(byte);
+function getBabyjub(): ReturnType<typeof buildBabyjub> {
+    if (!babyjubPromise) {
+        babyjubPromise = buildBabyjub().catch((error: unknown) => {
+            babyjubPromise = undefined;
+            throw error;
+        });
     }
 
-    CT_data.push(value);
-  }
-
-  const data = CT_data.map((c, i) => {
-    const hash_i = poseidon2(
-      (dataEncKey + BigInt(i)) % BN254_SCALAR_FIELD,
-      CT_r,
-    );
-
-    return (c - hash_i + BN254_SCALAR_FIELD) % BN254_SCALAR_FIELD;
-  });
-
-  const padded = Buffer.concat(
-    data.map((d) => Buffer.from(fieldToBytes31(d))),
-  );
-
-  return unpadPlaintext(padded);
+    return babyjubPromise;
 }
 
-/**
- * [4 bytes length][plaintext][0x80][0x00 ...] 로 padding.
- */
-function padPlaintext(plaintext: Buffer): Buffer {
-  const padded = Buffer.alloc(PADDED_CONTENT_BYTES, 0x00);
-
-  padded.writeUInt32BE(plaintext.length, 0);
-
-  plaintext.copy(padded, PLAIN_TEXT_LENGTH_BYTES);
-
-  padded[PLAIN_TEXT_LENGTH_BYTES + plaintext.length] = 0x80;
-
-  return padded;
-}
-
-/**
- * padding 제거.
- */
-function unpadPlaintext(padded: Buffer): Buffer {
-  if (padded.length !== PADDED_CONTENT_BYTES) {
-    throw new Error("Invalid padded plaintext length");
-  }
-
-  const plaintextLength = padded.readUInt32BE(0);
-
-  if (plaintextLength > MAX_CONTENT_BYTES) {
-    throw new Error("Invalid plaintext length");
-  }
-
-  const markerIndex = PLAIN_TEXT_LENGTH_BYTES + plaintextLength;
-
-  if (padded[markerIndex] !== 0x80) {
-    throw new Error("Invalid padding marker");
-  }
-
-  for (let i = markerIndex + 1; i < padded.length; i++) {
-    if (padded[i] !== 0x00) {
-      throw new Error("Invalid padding");
+function getPoseidon(): ReturnType<typeof buildPoseidon> {
+    if (!poseidonPromise) {
+        poseidonPromise = buildPoseidon().catch((error: unknown) => {
+            poseidonPromise = undefined;
+            throw error;
+        });
     }
-  }
 
-  return padded.subarray(PLAIN_TEXT_LENGTH_BYTES, markerIndex);
+    return poseidonPromise;
 }
 
-/**
- * 31-byte 고정 크기 block 으로 분할.
- */
-function splitInto31ByteBlocks(data: Buffer): Uint8Array[] {
-  if (data.length !== PADDED_CONTENT_BYTES) {
-    throw new Error(`Data length must be ${PADDED_CONTENT_BYTES} bytes`);
-  }
+// ========================================
+// Public Key Encryption
+// ========================================
 
-  const blocks: Uint8Array[] = [];
+export type Point = [bigint, bigint];
 
-  for (let offset = 0; offset < data.length; offset += DATA_BLOCK_BYTES) {
-    blocks.push(
-      Uint8Array.from(
-        data.subarray(offset, offset + DATA_BLOCK_BYTES),
-      ),
-    );
-  }
+export interface KeyPair {
+    privKey: bigint;
+    pubKey: Point;
+}
 
-  return blocks;
+export interface PublicCiphertext {
+    c0: Point;
+    c1: bigint;
+    c2: bigint[];
+}
+
+export interface EncPublicCiphertext {
+    c0: Point;
+    c1: bigint;
+    c2: bigint[];
+}
+
+export interface EncResult {
+    ciphertext: EncPublicCiphertext;
+
+    // 로컬에서만 보관하는 비밀값
+    r_enc: bigint;
+    k_enc: bigint;
+}
+
+export class PublicKeyEncryption {
+    private constructor(
+        private readonly babyjub: BabyJub,
+        private readonly poseidon: Poseidon,
+    ) { }
+
+    static async create(): Promise<PublicKeyEncryption> {
+        const [babyjub, poseidon] = await Promise.all([
+            getBabyjub(),
+            getPoseidon(),
+        ]);
+
+        return new PublicKeyEncryption(babyjub, poseidon);
+    }
+
+    private get prime(): bigint {
+        return this.babyjub.F.p;
+    }
+
+    private get subOrder(): bigint {
+        return this.babyjub.subOrder;
+    }
+
+    private mod(value: bigint, modulus: bigint): bigint {
+        return ((value % modulus) + modulus) % modulus;
+    }
+
+    private randomScalar(modulus: bigint): bigint {
+        const bitLength = modulus.toString(2).length;
+        const byteLength = Math.ceil(bitLength / 8);
+        const excessBits = byteLength * 8 - bitLength;
+
+        while (true) {
+            const bytes = randomBytes(byteLength);
+
+            if (excessBits > 0) {
+                bytes[0] &= 0xff >>> excessBits;
+            }
+
+            const value = BigInt(`0x${bytes.toString("hex")}`);
+
+            if (value > 0n && value < modulus) {
+                return value;
+            }
+        }
+    }
+
+    private hash(inputs: bigint[]): bigint {
+        return this.poseidon.F.toObject(this.poseidon(inputs)) as bigint;
+    }
+
+    private encodePoint(point: bigint[]): Point {
+        const x = this.babyjub.F.toObject(point[0]) as bigint;
+        const y = this.babyjub.F.toObject(point[1]) as bigint;
+
+        return [x, y];
+    }
+
+    private decodePoint(point: Point): bigint[] {
+        const [x, y] = point;
+
+        if (x < 0n || y < 0n || x >= this.prime || y >= this.prime) {
+            throw new RangeError("Point coordinate is out of range");
+        }
+
+        return [this.babyjub.F.e(x), this.babyjub.F.e(y)];
+    }
+
+    private deriveSharedKey(sharedPoint: bigint[]): bigint {
+        const x = this.babyjub.F.toObject(sharedPoint[0]) as bigint;
+        const y = this.babyjub.F.toObject(sharedPoint[1]) as bigint;
+
+        return this.hash([x, y]);
+    }
+
+    private encryptMask(key: bigint, index: number): bigint {
+        return this.hash([key, BigInt(index)]);
+    }
+
+    // ========================================
+    // Encryption
+    // ========================================
+
+    Enc(pubKey: Point, ...messages: bigint[]): EncResult {
+        const publicPoint = this.decodePoint(pubKey);
+
+        for (const [index, message] of messages.entries()) {
+            if (message < 0n || message >= this.prime) {
+                throw new RangeError(`Message at index ${index} exceeds the field range`);
+            }
+        }
+
+        const r_enc = this.randomScalar(this.subOrder); //order 기반
+        const k_enc = this.randomScalar(this.prime); //prime 기반
+
+        // C0 = rG
+        const c0Point = this.babyjub.mulPointEscalar(
+            this.babyjub.Base8,
+            r_enc,
+        );
+
+        // S = rPK
+        const sharedPoint = this.babyjub.mulPointEscalar(
+            publicPoint,
+            r_enc,
+        );
+
+        // c1 = k + S
+        const c1 = this.mod(k_enc + this.deriveSharedKey(sharedPoint), this.prime);
+
+        const c2 = messages.map((message, index) => {
+            const mask = this.encryptMask(k_enc, index);
+            return this.mod(message + mask, this.prime);
+        });
+
+        return {
+            r_enc,
+            k_enc,
+            ciphertext: {
+                c0: this.encodePoint(c0Point),
+                c1,
+                c2
+            }
+        };
+    }
+
+    // ========================================
+    // Decryption
+    // ========================================
+
+    Dec(ciphertext: PublicCiphertext, privKey: bigint): bigint[] {
+        if (privKey <= 0n || privKey >= this.subOrder) {
+            throw new RangeError("Private key is out of range");
+        }
+
+        const c0Point = this.decodePoint(ciphertext.c0);
+
+        // S = skC0
+        const sharedPoint = this.babyjub.mulPointEscalar(
+            c0Point,
+            privKey,
+        );
+
+        const key = this.deriveSharedKey(sharedPoint);
+
+        const k_enc = this.mod(ciphertext.c1 - key, this.prime)
+
+        return ciphertext.c2.map((encrypted, index) => {
+            if (encrypted < 0n || encrypted >= this.prime) {
+                throw new RangeError(`Ciphertext at index ${index} exceeds the field range`);
+            }
+
+            const mask = this.encryptMask(k_enc, index);
+            return this.mod(encrypted - mask, this.prime);
+        });
+    }
+}
+
+// ========================================
+// Symmetric Key Encryption
+// ========================================
+
+export interface Ciphertext {
+    r: bigint;
+    ct: bigint;
+}
+
+export interface CiphertextData {
+    r: bigint;
+    ct: bigint[];
+}
+
+export class SymmetricKeyEncryption {
+    private constructor(
+        private readonly sk: bigint,
+        private readonly p: bigint,
+        private readonly poseidon: Poseidon,
+        private readonly dataMaxBlockNum: number,
+    ) { }
+
+    static async create(privateKey: bigint, dataMaxBlockNum: number): Promise<SymmetricKeyEncryption> {
+        const poseidon = await getPoseidon();
+        const p = poseidon.F.p as bigint;
+
+        if (privateKey < 0n || privateKey >= p) {
+            throw new RangeError("Private key must be in the field range");
+        }
+
+        if (!Number.isInteger(dataMaxBlockNum) || dataMaxBlockNum <= 0) {
+            throw new RangeError("dataMaxBlockNum must be a positive integer");
+        }
+
+        return new SymmetricKeyEncryption(
+            privateKey,
+            p,
+            poseidon,
+            dataMaxBlockNum,
+        );
+    }
+
+    private randomFieldElement(): bigint {
+        const byteLength = Math.ceil(
+            this.p.toString(2).length / 8,
+        );
+
+        const range = 1n << BigInt(byteLength * 8);
+        const limit = range - (range % this.p);
+
+        while (true) {
+            const candidate = BigInt(
+                `0x${randomBytes(byteLength).toString("hex")}`,
+            );
+
+            if (candidate < limit) {
+                return candidate % this.p;
+            }
+        }
+    }
+
+    private validateField(value: bigint): void {
+        if (value < 0n || value >= this.p) {
+            throw new RangeError("Value exceeds the field range");
+        }
+    }
+
+    private hash(sk: bigint, r: bigint): bigint {
+        return this.poseidon.F.toObject(this.poseidon([sk, r])) as bigint;
+    }
+
+    // ========================================
+    // Single value encryption
+    // ========================================
+
+    Enc(data: bigint): Ciphertext {
+        this.validateField(data);
+
+        const r = this.randomFieldElement();
+        const mask = this.hash(this.sk, r);
+        const ct = (data + mask) % this.p;
+
+        return {
+            r,
+            ct,
+        };
+    }
+
+    // ========================================
+    // Multiple block encryption
+    // ========================================
+
+    EncData(data: bigint[]): CiphertextData {
+        if (data.length !== this.dataMaxBlockNum) {
+            throw new RangeError(`Expected ${this.dataMaxBlockNum} blocks, got ${data.length}`);
+        }
+
+        data.forEach(value => this.validateField(value));
+
+        const r = this.randomFieldElement();
+
+        const ct = data.map((value, i) => {
+            const indexedKey = (this.sk + BigInt(i)) % this.p;
+            const mask = this.hash(indexedKey, r);
+
+            return (value + mask) % this.p;
+        });
+
+        return {
+            r,
+            ct,
+        };
+    }
+
+    // ========================================
+    // Single value decryption
+    // ========================================
+
+    Dec(ciphertext: Ciphertext): bigint {
+        this.validateField(ciphertext.r);
+        this.validateField(ciphertext.ct);
+
+        const mask = this.hash(this.sk, ciphertext.r);
+
+        return (ciphertext.ct - mask + this.p) % this.p;
+    }
+
+    // ========================================
+    // Multiple block decryption
+    // ========================================
+
+    DecData(ciphertext: CiphertextData): bigint[] {
+        if (ciphertext.ct.length !== this.dataMaxBlockNum) {
+            throw new RangeError(`Expected ${this.dataMaxBlockNum} blocks, got ${ciphertext.ct.length}`);
+        }
+
+        this.validateField(ciphertext.r);
+        ciphertext.ct.forEach(value => this.validateField(value));
+
+        return ciphertext.ct.map((value, i) => {
+            const indexedKey = (this.sk + BigInt(i)) % this.p;
+            const mask = this.hash(indexedKey, ciphertext.r);
+
+            return (value - mask + this.p) % this.p;
+        });
+    }
 }

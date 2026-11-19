@@ -1,18 +1,11 @@
 import { prisma } from "../lib/prisma.js";
-import { ContentRegistrationProofResult } from "../service/transaction.service.js";
+import { ContentRegistrationProofResult } from "../service/proof.service.js";
 import { type ProofRequestedMessage } from "../kafka/types.js";
 
 export interface CreateContentRegistrationInput {
   jobId: string;
   registrationId: number;
   ContentRegistrationProof: ContentRegistrationProofResult;
-}
-
-export interface CreateTradeApprovalInput {
-  jobId: string;
-  purchaseId: number;
-  proof: string;
-  publicSignals: string;
 }
 
 export const transactionRepository = {
@@ -40,7 +33,7 @@ export const transactionRepository = {
           hData: encryption.hData,
           hCt: encryption.hCt,
 
-          status: "PENDING",
+          status: "PROOF_COMPLETED",
         },
       });
 
@@ -57,20 +50,50 @@ export const transactionRepository = {
     });
   },
 
-  // ==========================================================
-  // 거래 승인 작업 + Outbox
-  // ==========================================================
-  async createTradeApprovalWithOutbox(
-    data: CreateTradeApprovalInput,
-  ) {
+  async findContentRegistrationByJobId(jobId: string) {
+    return prisma.contentRegistrationTransaction.findUnique({
+      where: { jobId },
+    });
+  },
+
+  // 거래 승인 작업 조회 (referenceId = purchaseId)
+  async findTradeApprovalByPurchaseId(purchaseId: number) {
+    return prisma.tradeApprovalTransaction.findUnique({
+      where: { purchaseId },
+    });
+  },
+
+  // 거래 승인 작업 선점 (approvalJobId null + status PENDING일 때만)
+  async claimTradeApproval(purchaseId: number, jobId: string): Promise<boolean> {
+    const result = await prisma.tradeApprovalTransaction.updateMany({
+      where: {
+        purchaseId,
+        approvalJobId: null,
+        status: "PENDING",
+      },
+      data: {
+        approvalJobId: jobId,
+      },
+    });
+
+    return result.count === 1;
+  },
+
+  // 거래 승인 결과 저장 + Transaction Worker용 Outbox 생성 (원자적)
+  async saveTradeApprovalWithOutbox(data: {
+    purchaseId: number;
+    jobId: string;
+    proof: string;
+    publicSignals: string;
+  }) {
     return prisma.$transaction(async (tx) => {
-      const transaction = await tx.tradeApprovalTransaction.create({
+      const transaction = await tx.tradeApprovalTransaction.update({
+        where: { purchaseId: data.purchaseId },
         data: {
-          jobId: data.jobId,
-          purchaseId: data.purchaseId,
+          approvalJobId: data.jobId,
           proof: data.proof,
           publicSignals: data.publicSignals,
-          status: "PENDING",
+          status: "PROOF_COMPLETED",
         },
       });
 
@@ -84,18 +107,6 @@ export const transactionRepository = {
       });
 
       return transaction;
-    });
-  },
-
-  async findContentRegistrationByJobId(jobId: string) {
-    return prisma.contentRegistrationTransaction.findUnique({
-      where: { jobId },
-    });
-  },
-
-  async findTradeApprovalByJobId(jobId: string) {
-    return prisma.tradeApprovalTransaction.findUnique({
-      where: { jobId },
     });
   },
 

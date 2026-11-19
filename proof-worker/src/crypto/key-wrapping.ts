@@ -14,8 +14,9 @@ export const ENCRYPTED_DATA_KEY_LENGTH = CTR_IV_LENGTH + DATA_ENC_KEY_LENGTH;
  */
 export function wrapDataEncKey(
   dataEncKey: bigint,
-  masterKey: Buffer,
+  encKey: string,
 ): Uint8Array<ArrayBuffer> {
+  const masterKey = Buffer.from(encKey, "base64");
   if (masterKey.length !== AES_KEY_LENGTH) {
     throw new Error(`MASTER_KEY must be ${AES_KEY_LENGTH} bytes`);
   }

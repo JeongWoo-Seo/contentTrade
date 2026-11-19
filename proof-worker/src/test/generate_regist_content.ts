@@ -1,4 +1,4 @@
-import { encryptContent } from "../crypto/encryption.js";
+import { encryptContent } from "../crypto/content-encryption.js";
 import fs from "node:fs";
 
 const originalText = "안녕하세요. 테스트 소설입니다.";

@@ -21,6 +21,21 @@ export function getContentRegistrationSource(
   });
 }
 
+export function getTradeApproval(
+  purchaseId: number,
+  jobId: string,
+): Promise<Market.GetTradeApprovalResponse> {
+  return new Promise((resolve, reject) => {
+    client.getTradeApproval({purchaseId, jobId }, (error, respense) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(respense);
+    });
+  });
+}
+
 export function closeMarketClient(): void {
   client.close();
 }
