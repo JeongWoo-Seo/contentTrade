@@ -165,14 +165,13 @@ model ContentList {
   // ----------------------------------------------------------
   // CT_data 를 각각 32-byte BE 로 연결 (DATA_BLOCK_NUM × 32 bytes)
   encryptedData Bytes @map("encrypted_data")
-
+  ctR String @map("ct_r") @db.VarChar(80)
   // ----------------------------------------------------------
   // 복호화 파라미터
   // ----------------------------------------------------------
 
   // dataEncKey를 서버 master key로 암호화한 값
   encryptedDataKey Bytes @map("encrypted_data_key")
-  ctR String @map("ct_r") @db.VarChar(80)
   encryptionVersion Int @default(1) @map("encryption_version")
 
   // ----------------------------------------------------------

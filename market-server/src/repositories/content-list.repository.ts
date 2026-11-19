@@ -35,7 +35,7 @@ export const contentListRepository = {
         hK: true,
         hCt: true,
         encryptedData: true,
-        author: { select: { pkOwn: true } },
+        author: { select: { pkEnc:true, pkOwn: true } },
       },
     });
   },

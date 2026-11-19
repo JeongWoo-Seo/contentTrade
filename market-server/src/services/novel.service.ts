@@ -215,6 +215,7 @@ export const novelService = {
     return {
       hCt: content.hCt,
       ctData: Buffer.from(content.encryptedData).toString("hex"),
+      authorPkEnc: content.author.pkEnc,
       authorPkOwn: content.author.pkOwn,
       price: content.price.toNumber(),
       hK: content.hK,
@@ -265,19 +266,18 @@ export const novelService = {
     return { contentId, txHash };
   },
 
-  async getTradeApproval(tradeId: number) {
-    if (!Number.isInteger(tradeId) || tradeId < 1) {
+  async getTradeApproval(purchaseId: number) {
+    if (!Number.isInteger(purchaseId) || purchaseId < 1) {
       throw new ApiError(404, "NOT_FOUND", "존재하지 않는 구매입니다.");
     }
 
-    const buyHistory = await buyHistoryRepository.findByIdWithContentAndBuyer(tradeId);
+    const buyHistory = await buyHistoryRepository.findByIdWithContentAndBuyer(purchaseId);
     if (!buyHistory) {
       throw new ApiError(404, "NOT_FOUND", "존재하지 않는 구매입니다.");
     }
 
     return {
       encryptedDataEncKey: Buffer.from(buyHistory.content.encryptedDataKey),
-      ctR: buyHistory.content.ctR,
       price: buyHistory.content.price.toNumber(),
       hK: buyHistory.content.hK,
       pkEncCons: buyHistory.buyer.pkEnc,

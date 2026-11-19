@@ -25,7 +25,6 @@ export const buyHistoryRepository = {
         content: {
           select: {
             encryptedDataKey: true,
-            ctR: true,
             price: true,
             hK: true,
             author: { select: { pkOwn: true } },

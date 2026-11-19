@@ -102,21 +102,20 @@ export function createGrpcServer() {
                 callback: grpc.sendUnaryData<Market.GetTradeApprovalResponse>
             ) => {
                 try {
-                    const { jobId, tradeId } = call.request;
+                    const { jobId, purchaseId } = call.request;
 
                     console.log(
                         `GetTradeApproval`,
-                        `tradeId=${tradeId}`,
+                        `purchaseId=${purchaseId}`,
                         `jobId=${jobId}`
                     );
 
-                    const data = await novelService.getTradeApproval(tradeId);
+                    const data = await novelService.getTradeApproval(purchaseId);
 
                     return callback(null, {
                         jobId,
-                        tradeId,
+                        purchaseId,
                         encryptedDataEncKey: data.encryptedDataEncKey,
-                        ctR: data.ctR,
                         price: data.price,
                         hK: data.hK,
                         pkEncCons: data.pkEncCons,
