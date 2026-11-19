@@ -7,12 +7,13 @@
     "test": "test"
   },
   "scripts": {
-    "testrpc": "node ./node_modules/ganache-cli/cli.js --port 7545 --gasLimit 0x3FFFFFFFFFFFF --gasPrice 1 --defaultBalanceEther 100000000000 --networkId 1337 --account_keys_path keys.json",
+    "testrpc": "forge script script/Deploy.s.sol:Deploy --rpc-url http://127.0.0.1:8545 --mnemonics \"test test test test test test test test test test test junk\" --chain-id 31337 --broadcast",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "ganache-cli": "^6.12.2"
+    "ganache-cli": "^6.12.2",
+    "poseidon-solidity": "^0.0.5"
   }
 }

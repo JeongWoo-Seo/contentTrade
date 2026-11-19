@@ -1,36 +1,35 @@
+
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {RegistContentVerifier} from "../src/RegistContentVerifier.sol";
+import {GenerateTradeVerifier} from "../src/GenerateTradeVerifier.sol";
+import {ApproveTradeVerifier} from "../src/ApproveTradeVerifier.sol";
 import {ContentTrade} from "../src/Trade.sol";
 
-/**
- * @title Deploy
- * @notice RegistContentVerifier + ContentTrade 배포 스크립트.
- *
- * 환경 변수:
- *   DEPLOYER_PRIVATE_KEY - MNEMONIC
- * 사용법:
- *   forge script script/Deploy.s.sol --rpc-url <RPC> --broadcast
- *
- * 배포 순서:
- *   1. RegistContentVerifier (Groth16 verifier, public inputs 4개)
- *   2. ContentTrade(registVerifier 주소)
- *
- * 재배포 방지:
- *   deployments/<chainId>.json 에 저장된 주소의 코드 존재 여부와 체인 ID를 확인하여
- *   이미 배포되어 있으면 해당 컨트랙트는 재배포하지 않는다.
- */
 contract Deploy is Script {
     string constant DEPLOYMENTS_DIR = "deployments";
 
-    function run() external {
-        string memory mnemonic = "test test test test test test test test test test test junk";
-        uint256 deployerPrivateKey = vm.deriveKey(mnemonic, 0);
-        address deployer = vm.addr(deployerPrivateKey);
+    string constant MNEMONIC =
+        "test test test test test test test test test test test junk";
 
+    struct DeploymentData {
+        address registVerifier;
+        address generateTradeVerifier;
+        address approveTradeVerifier;
+        address contentTrade;
+
+        // 기존 배포 주소 보존 (재배포 여부 확인용)
+        address recordedRegistVerifier;
+        address recordedGenerateTradeVerifier;
+        address recordedApproveTradeVerifier;
+    }
+
+    function run() external {
+        uint256 deployerPrivateKey = vm.deriveKey(MNEMONIC, 0);
         uint256 chainId = block.chainid;
+
         string memory path = string.concat(
             DEPLOYMENTS_DIR,
             "/",
@@ -38,63 +37,215 @@ contract Deploy is Script {
             ".json"
         );
 
-        // ─────────────────────────────────────────────
-        // 기존 배포 확인 (체인 ID + 코드 존재 여부)
-        // ─────────────────────────────────────────────
-        address registVerifierAddr = address(0);
-        address contentTradeAddr = address(0);
-
-        if (vm.exists(path)) {
-            string memory json = vm.readFile(path);
-            registVerifierAddr = vm.parseJsonAddress(
-                json,
-                ".registContentVerifier"
-            );
-            contentTradeAddr = vm.parseJsonAddress(json, ".contentTrade");
-        }
-
-        bool verifierDeployed = registVerifierAddr != address(0) &&
-            registVerifierAddr.code.length > 0;
-        bool tradeDeployed = contentTradeAddr != address(0) &&
-            contentTradeAddr.code.length > 0;
-
-        console2.log("Deployer:", deployer);
+        console2.log("Deployer:", vm.addr(deployerPrivateKey));
         console2.log("Chain ID:", chainId);
 
-        // ─────────────────────────────────────────────
-        // 배포
-        // ─────────────────────────────────────────────
+        // 1. 기존 배포 정보 읽기
+        DeploymentData memory deployment = _loadDeployment(path);
+
+        // 2. Verifier 및 ContentTrade 배포
         vm.startBroadcast(deployerPrivateKey);
 
-        if (!verifierDeployed) {
-            registVerifierAddr = address(new RegistContentVerifier());
-            console2.log(
-                "RegistContentVerifier deployed at:",
-                registVerifierAddr
-            );
-        } else {
-            console2.log(
-                "RegistContentVerifier already deployed at:",
-                registVerifierAddr
-            );
-        }
-
-        if (!tradeDeployed) {
-            contentTradeAddr = address(new ContentTrade(registVerifierAddr));
-            console2.log("ContentTrade deployed at:", contentTradeAddr);
-        } else {
-            console2.log("ContentTrade already deployed at:", contentTradeAddr);
-        }
+        deployment = _deployVerifiers(deployment);
+        deployment = _deployContentTrade(deployment);
 
         vm.stopBroadcast();
 
-        // ─────────────────────────────────────────────
-        // 배포 결과 저장 (deployments/<chainId>.json)
-        // ─────────────────────────────────────────────
+        // 3. 배포 결과 저장
+        _saveDeployment(path, chainId, deployment);
+    }
+
+    // =====================================================
+    // 1. 기존 배포 정보 읽기
+    // =====================================================
+
+    function _loadDeployment(
+        string memory path
+    ) internal returns (DeploymentData memory d) {
+        if (!vm.exists(path)) {
+            return d;
+        }
+
+        string memory json = vm.readFile(path);
+
+        if (vm.keyExistsJson(json, ".registContentVerifier")) {
+            d.registVerifier = vm.parseJsonAddress(
+                json,
+                ".registContentVerifier"
+            );
+        }
+
+        if (vm.keyExistsJson(json, ".generateTradeVerifier")) {
+            d.generateTradeVerifier = vm.parseJsonAddress(
+                json,
+                ".generateTradeVerifier"
+            );
+        }
+
+        if (vm.keyExistsJson(json, ".approveTradeVerifier")) {
+            d.approveTradeVerifier = vm.parseJsonAddress(
+                json,
+                ".approveTradeVerifier"
+            );
+        } else if (
+            vm.keyExistsJson(json, ".approveTradeVerifierAddr")
+        ) {
+            // 이전 버전 JSON 호환
+            d.approveTradeVerifier = vm.parseJsonAddress(
+                json,
+                ".approveTradeVerifierAddr"
+            );
+        }
+
+        if (vm.keyExistsJson(json, ".contentTrade")) {
+            d.contentTrade = vm.parseJsonAddress(
+                json,
+                ".contentTrade"
+            );
+        }
+
+        // 기존 주소 보존
+        d.recordedRegistVerifier = d.registVerifier;
+        d.recordedGenerateTradeVerifier = d.generateTradeVerifier;
+        d.recordedApproveTradeVerifier = d.approveTradeVerifier;
+    }
+
+    // =====================================================
+    // 2. Verifier 배포
+    // =====================================================
+
+    function _deployVerifiers(
+        DeploymentData memory d
+    ) internal returns (DeploymentData memory) {
+
+        // RegistContentVerifier
+        if (!_hasCode(d.registVerifier)) {
+            d.registVerifier = address(
+                new RegistContentVerifier()
+            );
+
+            console2.log(
+                "RegistContentVerifier deployed:",
+                d.registVerifier
+            );
+        } else {
+            console2.log(
+                "RegistContentVerifier already deployed:",
+                d.registVerifier
+            );
+        }
+
+        // GenerateTradeVerifier
+        if (!_hasCode(d.generateTradeVerifier)) {
+            d.generateTradeVerifier = address(
+                new GenerateTradeVerifier()
+            );
+
+            console2.log(
+                "GenerateTradeVerifier deployed:",
+                d.generateTradeVerifier
+            );
+        } else {
+            console2.log(
+                "GenerateTradeVerifier already deployed:",
+                d.generateTradeVerifier
+            );
+        }
+
+        // ApproveTradeVerifier
+        if (!_hasCode(d.approveTradeVerifier)) {
+            d.approveTradeVerifier = address(
+                new ApproveTradeVerifier()
+            );
+
+            console2.log(
+                "ApproveTradeVerifier deployed:",
+                d.approveTradeVerifier
+            );
+        } else {
+            console2.log(
+                "ApproveTradeVerifier already deployed:",
+                d.approveTradeVerifier
+            );
+        }
+
+        return d;
+    }
+
+    // =====================================================
+    // 3. ContentTrade 배포
+    // =====================================================
+
+    function _deployContentTrade(
+        DeploymentData memory d
+    ) internal returns (DeploymentData memory) {
+
+        bool canReuse =
+            _hasCode(d.contentTrade) &&
+            d.recordedRegistVerifier == d.registVerifier &&
+            d.recordedGenerateTradeVerifier == d.generateTradeVerifier &&
+            d.recordedApproveTradeVerifier == d.approveTradeVerifier;
+
+        if (!canReuse) {
+            d.contentTrade = address(
+                new ContentTrade(
+                    d.registVerifier,
+                    d.generateTradeVerifier,
+                    d.approveTradeVerifier
+                )
+            );
+
+            console2.log(
+                "ContentTrade deployed:",
+                d.contentTrade
+            );
+        } else {
+            console2.log(
+                "ContentTrade already deployed:",
+                d.contentTrade
+            );
+        }
+
+        return d;
+    }
+
+    // =====================================================
+    // 4. 배포 결과 저장
+    // =====================================================
+
+    function _saveDeployment(
+        string memory path,
+        uint256 chainId,
+        DeploymentData memory d
+    ) internal {
         string memory obj = "contentTradeDeployment";
+
         vm.serializeUint(obj, "chainId", chainId);
-        vm.serializeAddress(obj, "registContentVerifier", registVerifierAddr);
-        vm.serializeAddress(obj, "contentTrade", contentTradeAddr);
+
+        vm.serializeAddress(
+            obj,
+            "registContentVerifier",
+            d.registVerifier
+        );
+
+        vm.serializeAddress(
+            obj,
+            "generateTradeVerifier",
+            d.generateTradeVerifier
+        );
+
+        vm.serializeAddress(
+            obj,
+            "approveTradeVerifier",
+            d.approveTradeVerifier
+        );
+
+        vm.serializeAddress(
+            obj,
+            "contentTrade",
+            d.contentTrade
+        );
+
         string memory finalJson = vm.serializeUint(
             obj,
             "deployedAt",
@@ -102,6 +253,15 @@ contract Deploy is Script {
         );
 
         vm.writeJson(finalJson, path);
+
         console2.log("Deployment saved to:", path);
+    }
+
+    // =====================================================
+    // Utility
+    // =====================================================
+
+    function _hasCode(address addr) internal view returns (bool) {
+        return addr != address(0) && addr.code.length > 0;
     }
 }
