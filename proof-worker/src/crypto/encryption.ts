@@ -34,6 +34,21 @@ function getPoseidon(): ReturnType<typeof buildPoseidon> {
     return poseidonPromise;
 }
 
+/**
+ * pk = sk * G (BabyJubjub base point).
+ * 유효한 curve point [x, y] (bigint)를 반환한다. (PublicKeyEncryption 외부 헬퍼)
+ */
+export async function scalarMulBase(scalar: bigint): Promise<Point> {
+    const babyjub = await getBabyjub();
+    const point = babyjub.mulPointEscalar(babyjub.Base8, scalar);
+    const F = babyjub.F;
+
+    return [
+        F.toObject(point[0]) as bigint,
+        F.toObject(point[1]) as bigint,
+    ];
+}
+
 // ========================================
 // Public Key Encryption
 // ========================================

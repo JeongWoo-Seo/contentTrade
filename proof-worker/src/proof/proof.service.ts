@@ -87,40 +87,39 @@ export async function generateProofForContentRegistration(
   }
 }
 
+/**
+ * approve_trade 회로 입력(circuitInput)을 생성한다.
+ * handleTradeApproval 흐름의 decrypted order + cipher + dataEncKey로부터 조립한다.
+ */
+export function buildTradeApproveCircuitInput(
+  input: TradeApprovalProofInput,
+): Record<string, unknown> {
+  return {
+    // Public
+    cm_auth: input.cmAuth,
+    cm_svr: input.cmSvr,
+    c0: [input.cipher.ciphertext.c0[0].toString(), input.cipher.ciphertext.c0[1].toString()],
+    c1: input.cipher.ciphertext.c1.toString(),
+    c2: input.cipher.ciphertext.c2[0].toString(),
+
+    // Prover witness
+    r_cm: input.order.r_cm.toString(),
+    h_k: input.order.h_k.toString(),
+    fee_auth: input.order.fee_auth.toString(),
+    fee_svr: input.order.fee_svr.toString(),
+    data_enc_key: input.dataEncKey.toString(),
+    pk_enc_cons: [input.order.pk_enc_cons[0].toString(), input.order.pk_enc_cons[1].toString()],
+    pk_own_auth: input.order.pk_own_auth.toString(),
+    pk_own_svr: input.pkOwnSvr.toString(),
+    r_enc: input.cipher.r_enc.toString(),
+    k_enc: input.cipher.k_enc.toString(),
+  };
+}
+
 export async function generateProofForTradeApprove(
   input: TradeApprovalProofInput,
 ): Promise<ProofOutcome> {
-  const circuitInput = {
-    /*
-     * Public
-     */
-    cm_auth: input.cmAuth,
-    cm_svr: input.cmSvr,
-
-    c0: [input.cipher.ciphertext.c0[0].toString(), input.cipher.ciphertext.c0[1].toString()],
-    c1: input.cipher.ciphertext.c1.toString(),
-    c2: input.cipher.ciphertext.c2.toString(),
-
-
-    /*
-     * Prover witness
-     */
-    r_cm: input.order.r_cm.toString(),
-    h_k: input.order.h_k.toString(),
-
-    fee_auth: input.order.fee_auth.toString(),
-    fee_svr: input.order.fee_svr.toString(),
-
-    data_enc_key: input.dataEncKey.toString(),
-
-    pk_enc_cons: [input.order.pk_enc_cons[0].toString(), input.order.pk_enc_cons[0].toString()],
-
-    pk_own_auth: input.order.pk_own_auth.toString(),
-    pk_own_svr: input.pkOwnSvr.toString(),
-
-    r_enc: input.cipher.r_enc.toString(),
-    k_enc: input.cipher.k_enc.toString()
-  };
+  const circuitInput = buildTradeApproveCircuitInput(input);
 
   try {
     const { proof, publicSignals } = await groth16.fullProve(

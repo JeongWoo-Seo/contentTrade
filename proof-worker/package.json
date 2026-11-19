@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "db_generate": "npx prisma generate",
     "generate_input": "tsx src/test/generate_regist_content.ts",
+    "generate_approve_trade_input": "tsx src/test/generate_trade_approve_input.ts",
     "grpc_install": "npm install @content-trade/grpc-contract"
   },
   "keywords": [],
