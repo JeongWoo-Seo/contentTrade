@@ -78,11 +78,9 @@ export async function requestPurchase(contentId: number, txHash: string): Promis
 
 export async function createPurchaseOrder(
   input: {
-    pk_enc_cons_x: string;
-    pk_enc_cons_y: string;
-    pk_own_cons: string;
-    pk_enc_svr_x: string;
-    pk_enc_svr_y: string;
+    pk_enc_cons: [string,string];
+    pk_enc_svr: [string,string];
+    pk_enc_auth: [string,string];
     pk_own_svr: string;
     pk_own_auth: string;
     h_k: string;
@@ -90,11 +88,9 @@ export async function createPurchaseOrder(
   }
 ) {
   const {
-    pk_enc_cons_x,
-    pk_enc_cons_y,
-    pk_own_cons,
-    pk_enc_svr_x,
-    pk_enc_svr_y,
+    pk_enc_cons,
+    pk_enc_svr,
+    pk_enc_auth,
     pk_own_svr,
     pk_own_auth,
     h_k,
@@ -108,49 +104,55 @@ export async function createPurchaseOrder(
   const fee_svr = 1n;
   const fee_auth = price - fee_svr;
 
-  const r = randomFieldElement();
+  const r_cm = randomFieldElement();
 
   const cm_svr = await poseidonHash(
     [fromHex(pk_own_svr),
-      r,
+      r_cm,
       fee_svr,
       fromDecimal(h_k),
-      fromHex(pk_enc_cons_x),
-      fromHex(pk_enc_cons_y)
+      fromHex(pk_enc_cons[0]),
+      fromHex(pk_enc_cons[1])
     ]
   );
 
   const cm_auth = await poseidonHash(
     [fromHex(pk_own_auth),
-      r,
+      r_cm,
       fee_auth,
       fromDecimal(h_k),
-      fromHex(pk_enc_cons_x),
-      fromHex(pk_enc_cons_y)
+      fromHex(pk_enc_cons[0]),
+      fromHex(pk_enc_cons[1])
     ]
   );
 
   // pk_enc_svr로 암호화
   const pubEnc = await PublicKeyEncryption.create()
   const encrypted = pubEnc.Enc(
-    [fromHex(pk_enc_svr_x), fromHex(pk_enc_svr_y)],
-    fromHex(pk_own_cons),
-    r,
-    fee_svr,
+    [fromHex(pk_enc_auth[0]), fromHex(pk_enc_auth[1])],
+    [fromHex(pk_enc_svr[0]), fromHex(pk_enc_svr[1])],
+    fromHex(pk_own_auth),
+    r_cm,
     fee_auth,
+    fee_svr,
     fromDecimal(h_k),
+    fromHex(pk_enc_cons[0]),
+    fromHex(pk_enc_cons[1])
   );
 
   return {
-    fee_svr,
     fee_auth,
-    r,
+    fee_svr,
+    r_cm,
 
     cm_svr,
     cm_auth,
 
     r_enc: encrypted.r_enc,
-    c0: encrypted.c0,
-    c1: encrypted.c1,
+    k_enc: encrypted.k_enc,
+    c0: encrypted.ciphertext.c0,
+    c1_auth: encrypted.ciphertext.c1_auth,
+    c1_svr: encrypted.ciphertext.c1_svr,
+    c2: encrypted.ciphertext.c2
   };
 }

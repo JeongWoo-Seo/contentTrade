@@ -53,6 +53,7 @@ export interface MyRegistrationListResponse {
 export interface TradeInfo {
   hCt: string;
   ctData: string;
+  authorPkEnc: string;
   authorPkOwn: string;
   price: number;
   hK: string;

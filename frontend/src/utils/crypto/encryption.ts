@@ -47,13 +47,23 @@ export interface KeyPair {
 
 export interface PublicCiphertext {
     c0: Point;
-    c1: bigint[];
+    c1: bigint;
+    c2: bigint[];
 }
 
-export interface EncResult {
+export interface EncPublicCiphertext {
     c0: Point;
-    c1: bigint[];
+    c1_auth: bigint;
+    c1_svr: bigint;
+    c2: bigint[];
+}
+
+interface EncResult {
+    ciphertext: EncPublicCiphertext;
+
+    // 로컬에서만 보관하는 비밀값
     r_enc: bigint;
+    k_enc: bigint;
 }
 
 export class PublicKeyEncryption {
@@ -83,9 +93,25 @@ export class PublicKeyEncryption {
         return ((value % modulus) + modulus) % modulus;
     }
 
-    private randomScalar(): bigint {
-        const random = BigInt(`0x${randomBytes(32).toString("hex")}`);
-        return random % this.subOrder;
+    //균일한 램덤값을 가직기 우해
+    private randomScalar(modulus: bigint): bigint {
+        const bitLength = modulus.toString(2).length;
+        const byteLength = Math.ceil(bitLength / 8);
+        const excessBits = byteLength * 8 - bitLength;
+
+        while (true) {
+            const bytes = randomBytes(byteLength);
+
+            if (excessBits > 0) {
+                bytes[0] &= 0xff >>> excessBits;
+            }
+
+            const value = BigInt(`0x${bytes.toString("hex")}`);
+
+            if (value > 0n && value < modulus) {
+                return value;
+            }
+        }
     }
 
     private hash(inputs: bigint[]): bigint {
@@ -113,19 +139,20 @@ export class PublicKeyEncryption {
         const x = this.babyjub.F.toObject(sharedPoint[0]) as bigint;
         const y = this.babyjub.F.toObject(sharedPoint[1]) as bigint;
 
-        return this.hash([x, y, 1n]);
+        return this.hash([x, y]);
     }
 
     private encryptMask(key: bigint, index: number): bigint {
-        return this.hash([key, BigInt(index), 2n]);
+        return this.hash([key, BigInt(index)]);
     }
 
     // ========================================
     // Encryption
     // ========================================
 
-    Enc(pubKey: Point, ...messages: bigint[]): EncResult {
-        const publicPoint = this.decodePoint(pubKey);
+    Enc(authPubKey: Point, svrPubkey: Point, ...messages: bigint[]): EncResult {
+        const authPublicPoint = this.decodePoint(authPubKey);
+        const svrPublicPoint = this.decodePoint(svrPubkey);
 
         for (const [index, message] of messages.entries()) {
             if (message < 0n || message >= this.prime) {
@@ -133,35 +160,44 @@ export class PublicKeyEncryption {
             }
         }
 
-        const r = this.randomScalar();
-
-        if (r === 0n) {
-            return this.Enc(pubKey, ...messages);
-        }
+        const r_enc = this.randomScalar(this.subOrder); //order 기반
+        const k_enc = this.randomScalar(this.prime); //prime 기반
 
         // C0 = rG
         const c0Point = this.babyjub.mulPointEscalar(
             this.babyjub.Base8,
-            r,
+            r_enc,
         );
 
         // S = rPK
-        const sharedPoint = this.babyjub.mulPointEscalar(
-            publicPoint,
-            r,
+        const authSharedPoint = this.babyjub.mulPointEscalar(
+            authPublicPoint,
+            r_enc,
         );
 
-        const key = this.deriveSharedKey(sharedPoint);
+        const svrSharedPoint = this.babyjub.mulPointEscalar(
+            svrPublicPoint,
+            r_enc,
+        );
 
-        const c1 = messages.map((message, index) => {
-            const mask = this.encryptMask(key, index);
+        // c1 = k + S
+        const c1_auth = this.mod(k_enc + this.deriveSharedKey(authSharedPoint), this.prime);
+        const c1_svr = this.mod(k_enc + this.deriveSharedKey(svrSharedPoint), this.prime);
+
+        const c2 = messages.map((message, index) => {
+            const mask = this.encryptMask(k_enc, index);
             return this.mod(message + mask, this.prime);
         });
 
         return {
-            r_enc: r,
-            c0: this.encodePoint(c0Point),
-            c1,
+            r_enc,
+            k_enc,
+            ciphertext: {
+                c0: this.encodePoint(c0Point),
+                c1_auth,
+                c1_svr,
+                c2
+            }
         };
     }
 
@@ -184,12 +220,14 @@ export class PublicKeyEncryption {
 
         const key = this.deriveSharedKey(sharedPoint);
 
-        return ciphertext.c1.map((encrypted, index) => {
+        const k = this.mod(ciphertext.c1 - key, this.prime)
+
+        return ciphertext.c2.map((encrypted, index) => {
             if (encrypted < 0n || encrypted >= this.prime) {
                 throw new RangeError(`Ciphertext at index ${index} exceeds the field range`);
             }
 
-            const mask = this.encryptMask(key, index);
+            const mask = this.encryptMask(k, index);
             return this.mod(encrypted - mask, this.prime);
         });
     }

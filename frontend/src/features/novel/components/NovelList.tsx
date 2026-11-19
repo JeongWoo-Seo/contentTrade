@@ -80,38 +80,39 @@ export function NovelList() {
       console.log('[purchase] 계좌 잔액 처리 완료:', balanceUpdate);
 
       // [구매 절차 5/8] Cm 및 주문 정보 암호화
-      if (!secrets.pkOwn || !secrets.pkEnc) {
+      if (!secrets.pkEnc) {
         throw new Error("User encryption keys are missing");
       }
 
       //key 값은 원래 hex string이고 h_k는 bigint string
-      const pk_enc_cons = splitPointHex(secrets.pkEnc)
-      const pk_enc_svr = splitPointHex(tradeInfo.serverPkEnc)
+      const pk_enc_cons = splitPointHex(secrets.pkEnc);
+      const pk_enc_svr = splitPointHex(tradeInfo.serverPkEnc);
+      const pk_enc_auth = splitPointHex(tradeInfo.authorPkEnc);
 
       const purchaseOrder = await createPurchaseOrder({
-        pk_enc_cons_x: pk_enc_cons[0],
-        pk_enc_cons_y: pk_enc_cons[1],
-        pk_own_cons: secrets.pkOwn,
-        pk_enc_svr_x: pk_enc_svr[0],
-        pk_enc_svr_y: pk_enc_svr[1],
+        pk_enc_cons,
+        pk_enc_svr,
+        pk_enc_auth,
         pk_own_svr: tradeInfo.serverPkOwn,
         pk_own_auth: tradeInfo.authorPkOwn,
         h_k: tradeInfo.hK,
         price: BigInt(tradeInfo.price),
-      })
+      });
 
       //dec(bigint) string 형태로 input 구성
       const input = {
         // =========================================
-        // Public inputs (13개)
+        // Public inputs (17개)
         // =========================================
-        cm_svr: purchaseOrder.cm_svr.toString(),
         cm_auth: purchaseOrder.cm_auth.toString(),
+        cm_svr: purchaseOrder.cm_svr.toString(),
 
-        c0_x: purchaseOrder.c0[0].toString(),
-        c0_y: purchaseOrder.c0[1].toString(),
+        c0: [purchaseOrder.c0[0].toString(),purchaseOrder.c0[1].toString()],
 
-        c1: purchaseOrder.c1.map((v) => v.toString()), // string[6]
+        c1_auth: purchaseOrder.c1_auth.toString(),
+        c1_svr: purchaseOrder.c1_svr.toString(),
+
+        c2: purchaseOrder.c2.map((v) => v.toString()), // string[6]
 
         oldEna_r: balanceUpdate.oldEna.r.toString(),
         oldEna_ct: balanceUpdate.oldEna.ct.toString(),
@@ -120,28 +121,26 @@ export function NovelList() {
         newEna_ct: balanceUpdate.newEna.ct.toString(),
 
         // =========================================
-        // Private inputs (12개)
+        // Private inputs (15개)
         // =========================================
         fee_svr: purchaseOrder.fee_svr.toString(),
         fee_auth: purchaseOrder.fee_auth.toString(),
 
-        r: purchaseOrder.r.toString(),
+        r_cm: purchaseOrder.r_cm.toString(),
         r_enc: purchaseOrder.r_enc.toString(),
+        k_enc: purchaseOrder.k_enc.toString(),
 
         h_k: tradeInfo.hK.toString(),
 
         //hex string -> dec string
-        pk_enc_cons_x: hexToDecimal(pk_enc_cons[0]),
-        pk_enc_cons_y: hexToDecimal(pk_enc_cons[1]),
-        pk_own_cons: hexToDecimal(secrets.pkOwn),
+        pk_enc_cons: [hexToDecimal(pk_enc_cons[0]),hexToDecimal(pk_enc_cons[1])],
+        pk_enc_svr: [hexToDecimal(pk_enc_svr[0]), hexToDecimal(pk_enc_svr[1])],
+        pk_enc_auth: [hexToDecimal(pk_enc_auth[0]), hexToDecimal(pk_enc_auth[1])],
 
         pk_own_svr: hexToDecimal(tradeInfo.serverPkOwn),
         pk_own_auth: hexToDecimal(tradeInfo.authorPkOwn),
 
-        pk_enc_svr_x: hexToDecimal(pk_enc_svr[0]),
-        pk_enc_svr_y: hexToDecimal(pk_enc_svr[1]),
-
-        k_enc: hexToDecimal(kENA)
+        k_ena: hexToDecimal(kENA)
       }
 
       // [구매 절차 6/8] Proof + public input 생성
